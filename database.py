@@ -3,7 +3,10 @@ import os
 from datetime import datetime, date
 import pytz
 
-DB_PATH = os.environ.get("DB_PATH", "expenses.db")
+DB_PATH = os.environ.get("DB_PATH", "expenses.db")# Auto-create directory if it doesn't exist (e.g. /data on Railway)
+_db_dir = os.path.dirname(DB_PATH)
+if _db_dir:
+    os.makedirs(_db_dir, exist_ok=True)
 TASHKENT_TZ = pytz.timezone("Asia/Tashkent")
 
 
