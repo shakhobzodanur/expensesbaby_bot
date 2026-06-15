@@ -156,6 +156,74 @@ TEXTS = {
         "uz":"{bar} {p}%  •  Balansdan ({spent}/{balance} {cur})",
     },
 
+    # promo message for non-whitelisted users
+    "promo": {
+        "en": (
+            "🤖 *Expensesbaby Bot*\n\n"
+            "Track your expenses & income smartly!\n\n"
+            "✅ Log income/expense in seconds\n"
+            "✅ Daily & monthly limits with alerts\n"
+            "✅ Smart Stats with progress bars\n"
+            "✅ Multi-language (UZ/RU/EN)\n"
+            "✅ Auto daily & weekly summaries\n"
+            "✅ Share stats with family\n"
+            "✅ Multi-currency (UZS/USD/RUB)\n\n"
+            "💰 *Price: $2.99/month*\n\n"
+            "📩 To get access: @shakhobzodanur"
+        ),
+        "ru": (
+            "🤖 *Expensesbaby Bot*\n\n"
+            "Умный учёт доходов и расходов!\n\n"
+            "✅ Записывайте доходы и расходы за секунды\n"
+            "✅ Дневной и месячный лимиты с уведомлениями\n"
+            "✅ Smart Stats с прогресс-барами\n"
+            "✅ Мультиязычность (UZ/RU/EN)\n"
+            "✅ Авто сводка каждый день и неделю\n"
+            "✅ Делитесь статистикой с семьёй\n"
+            "✅ Мультивалютность (UZS/USD/RUB)\n\n"
+            "💰 *Цена: $2.99/месяц*\n\n"
+            "📩 Для подключения: @shakhobzodanur"
+        ),
+        "uz": (
+            "🤖 *Expensesbaby Bot*\n\n"
+            "Daromad va xarajatlaringizni aqlli boshqaring!\n\n"
+            "✅ Daromad/xarajatni soniyalarda yozing\n"
+            "✅ Kunlik va oylik limitlar va ogohlantirishlar\n"
+            "✅ Smart Stats progress bar bilan\n"
+            "✅ Ko'p tilli (UZ/RU/EN)\n"
+            "✅ Har kun va hafta avtomatik hisobot\n"
+            "✅ Oila bilan statistikani ulashing\n"
+            "✅ Ko'p valyutali (UZS/USD/RUB)\n\n"
+            "💰 *Narx: $2.99/oy*\n\n"
+            "📩 Ulanish uchun: @shakhobzodanur"
+        ),
+    },
+    "not_allowed": {
+        "en": "🔒 This bot is private.",
+        "ru": "🔒 Этот бот приватный.",
+        "uz": "🔒 Bu bot xususiy.",
+    },
+
+    # whitelist admin commands
+    "allow_usage":   {"en":"Usage: /allow <user_id>","ru":"Использование: /allow <user_id>","uz":"Foydalanish: /allow <user_id>"},
+    "allow_done":    {"en":"✅ User {id} allowed.","ru":"✅ Пользователь {id} добавлен.","uz":"✅ {id} foydalanuvchi qo'shildi."},
+    "deny_usage":    {"en":"Usage: /deny <user_id>","ru":"Использование: /deny <user_id>","uz":"Foydalanish: /deny <user_id>"},
+    "deny_done":     {"en":"✅ User {id} removed.","ru":"✅ Пользователь {id} удалён.","uz":"✅ {id} foydalanuvchi o'chirildi."},
+    "users_title":   {"en":"👥 Allowed Users","ru":"👥 Разрешённые пользователи","uz":"👥 Ruxsat berilgan foydalanuvchilar"},
+    "users_empty":   {"en":"No users yet.","ru":"Пользователей нет.","uz":"Foydalanuvchilar yo'q."},
+    "invite_text":   {
+        "en":"🔗 Share this invite link:\n{link}\n\nValid for one use.",
+        "ru":"🔗 Отправьте эту ссылку:\n{link}\n\nОдноразовая.",
+        "uz":"🔗 Ushbu havolani yuboring:\n{link}\n\nBir martalik.",
+    },
+    "invite_used":   {
+        "en":"✅ Access granted! Send /start to begin.",
+        "ru":"✅ Доступ открыт! Отправьте /start.",
+        "uz":"✅ Ruxsat berildi! /start yuboring.",
+    },
+    "invite_invalid":{"en":"❌ Invalid or expired invite link.","ru":"❌ Недействительная ссылка.","uz":"❌ Havola yaroqsiz yoki muddati o'tgan."},
+    "owner_only":    {"en":"❌ Owner only command.","ru":"❌ Только для владельца.","uz":"❌ Faqat egasi uchun."},
+
     # scheduled
     "daily_summary":  {"en":"📅 Daily Summary", "ru":"📅 Итог дня",    "uz":"📅 Kunlik hisobot"},
     "weekly_summary": {"en":"📆 Weekly Summary","ru":"📆 Итог недели","uz":"📆 Haftalik hisobot"},

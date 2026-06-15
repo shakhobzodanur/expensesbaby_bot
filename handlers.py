@@ -6,6 +6,8 @@ from telegram import (
 from telegram.ext import ContextTypes
 from database import (
     init_db, ensure_user, get_user, get_lang, set_lang,
+    is_allowed, allow_user, deny_user, get_allowed_users,
+    create_invite_token, use_invite_token, get_owner_id,
     get_currency, set_currency,
     get_daily_limit, set_daily_limit,
     get_monthly_budget, set_monthly_budget,
@@ -282,6 +284,22 @@ AMOUNT_RE = re.compile(r"^([+-])(\d[\d\s.,]*)$")
 
 async def handle_amount(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
+
+    # ── whitelist check ──
+    if not is_allowed(user_id):
+        # detect user language from Telegram
+        tg_lang = update.effective_user.language_code or "en"
+        if tg_lang.startswith("ru"):
+            promo_lang = "ru"
+        elif tg_lang.startswith("uz"):
+            promo_lang = "uz"
+        else:
+            promo_lang = "en"
+        await update.message.reply_text(
+            t("promo", promo_lang), parse_mode="Markdown"
+        )
+        return
+
     ensure_user(user_id)
     text = update.message.text.strip()
 
@@ -582,6 +600,30 @@ async def cmd_language(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
+
+    # ── handle invite token ──
+    if ctx.args and len(ctx.args) > 0:
+        token = ctx.args[0]
+        if token.startswith("inv_"):
+            if use_invite_token(token):
+                allow_user(user_id)
+                tg_lang = update.effective_user.language_code or "en"
+                lang = "ru" if tg_lang.startswith("ru") else "uz" if tg_lang.startswith("uz") else "en"
+                await update.message.reply_text(t("invite_used", lang))
+                ensure_user(user_id)
+                await start_setup(update, user_id)
+                return
+            else:
+                await update.message.reply_text(t("invite_invalid", "en"))
+                return
+
+    # ── whitelist check ──
+    if not is_allowed(user_id):
+        tg_lang = update.effective_user.language_code or "en"
+        promo_lang = "ru" if tg_lang.startswith("ru") else "uz" if tg_lang.startswith("uz") else "en"
+        await update.message.reply_text(t("promo", promo_lang), parse_mode="Markdown")
+        return
+
     ensure_user(user_id)
     if not is_setup_done(user_id):
         await start_setup(update, user_id); return
@@ -589,6 +631,61 @@ async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     name = update.effective_user.first_name or ""
     await update.message.reply_text(
         t("welcome", lang, name=name), reply_markup=main_keyboard(lang))
+
+
+# ── Admin / Owner commands ────────────────────────────────────────────────────
+
+import secrets
+
+async def cmd_allow(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != get_owner_id():
+        await update.message.reply_text(t("owner_only", "en")); return
+    if not ctx.args:
+        await update.message.reply_text(t("allow_usage", "en")); return
+    try:
+        uid = int(ctx.args[0])
+    except ValueError:
+        await update.message.reply_text("❌ Invalid ID"); return
+    allow_user(uid)
+    await update.message.reply_text(t("allow_done", "en", id=uid))
+
+
+async def cmd_deny(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != get_owner_id():
+        await update.message.reply_text(t("owner_only", "en")); return
+    if not ctx.args:
+        await update.message.reply_text(t("deny_usage", "en")); return
+    try:
+        uid = int(ctx.args[0])
+    except ValueError:
+        await update.message.reply_text("❌ Invalid ID"); return
+    deny_user(uid)
+    await update.message.reply_text(t("deny_done", "en", id=uid))
+
+
+async def cmd_users(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != get_owner_id():
+        await update.message.reply_text(t("owner_only", "en")); return
+    users = get_allowed_users()
+    if not users:
+        await update.message.reply_text(t("users_empty", "en")); return
+    lines = [t("users_title", "en"), ""]
+    for i, uid in enumerate(users, 1):
+        lines.append(f"{i}. `{uid}`")
+    lines.append(f"\n👥 Total: {len(users)}")
+    await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
+
+
+async def cmd_invite(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != get_owner_id():
+        await update.message.reply_text(t("owner_only", "en")); return
+    token = "inv_" + secrets.token_urlsafe(12)
+    create_invite_token(token)
+    bot_username = (await ctx.bot.get_me()).username
+    link = f"https://t.me/{bot_username}?start={token}"
+    await update.message.reply_text(
+        t("invite_text", "en", link=link), parse_mode="Markdown"
+    )
 
 async def cmd_help(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     uid, lang, _ = await _guard(update)

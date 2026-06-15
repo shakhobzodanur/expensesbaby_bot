@@ -13,7 +13,8 @@ from handlers import (
     cmd_today, cmd_week, cmd_month, cmd_all, cmd_balance,
     cmd_setlimit, cmd_language, cmd_settings,
     cmd_share, cmd_unshare, cmd_start, cmd_help,
-    cmd_myid, cmd_viewstats
+    cmd_myid, cmd_viewstats,
+    cmd_allow, cmd_deny, cmd_users, cmd_invite
 )
 from scheduler import setup_scheduler
 
@@ -63,6 +64,10 @@ def main():
     app.add_handler(CommandHandler("unshare",   cmd_unshare))
     app.add_handler(CommandHandler("myid",      cmd_myid))
     app.add_handler(CommandHandler("viewstats", cmd_viewstats))
+    app.add_handler(CommandHandler("allow",     cmd_allow))
+    app.add_handler(CommandHandler("deny",      cmd_deny))
+    app.add_handler(CommandHandler("users",     cmd_users))
+    app.add_handler(CommandHandler("invite",    cmd_invite))
 
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_amount))
 

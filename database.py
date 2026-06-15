@@ -20,6 +20,7 @@ def get_conn():
 
 def init_db():
     with get_conn() as conn:
+        init_whitelist(conn)
         conn.executescript("""
             CREATE TABLE IF NOT EXISTS entries (
                 id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -196,6 +197,96 @@ def get_all_stats(user_id: int) -> dict:
 def get_balance(user_id: int) -> float:
     stats = get_all_stats(user_id)
     return get_initial_balance(user_id) + stats["income"] - stats["expenses"]
+
+
+# ── Whitelist ─────────────────────────────────────────────────────────────────
+
+def get_owner_id() -> int:
+    val = os.environ.get("OWNER_ID", "0")
+    try:
+        return int(val)
+    except ValueError:
+        return 0
+
+
+OWNER_ID = get_owner_id()  # cached at startup — set OWNER_ID env var before starting
+
+
+def init_whitelist(conn):
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS whitelist (
+            user_id   INTEGER PRIMARY KEY,
+            added_at  TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS invite_tokens (
+            token      TEXT PRIMARY KEY,
+            created_at TEXT NOT NULL,
+            used       INTEGER NOT NULL DEFAULT 0
+        );
+    """)
+
+
+def is_allowed(user_id: int) -> bool:
+    """Check if user is owner or in whitelist.
+    If OWNER_ID env var is not set (0), allow everyone for backward compat."""
+    import os as _os
+    raw = _os.environ.get("OWNER_ID", "0").strip()
+    try:
+        owner = int(raw)
+    except ValueError:
+        owner = 0
+    if owner == 0:
+        return True  # no owner set — open access
+    if user_id == owner:
+        return True
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT 1 FROM whitelist WHERE user_id=?", (user_id,)
+        ).fetchone()
+        return row is not None
+
+
+def allow_user(user_id: int):
+    with get_conn() as conn:
+        conn.execute(
+            "INSERT OR IGNORE INTO whitelist (user_id, added_at) VALUES (?,?)",
+            (user_id, datetime.now(TASHKENT_TZ).strftime("%Y-%m-%d %H:%M:%S"))
+        )
+
+
+def deny_user(user_id: int):
+    with get_conn() as conn:
+        conn.execute("DELETE FROM whitelist WHERE user_id=?", (user_id,))
+
+
+def get_allowed_users() -> list:
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT user_id FROM whitelist ORDER BY added_at"
+        ).fetchall()
+        return [r["user_id"] for r in rows]
+
+
+def create_invite_token(token: str):
+    with get_conn() as conn:
+        conn.execute(
+            "INSERT OR IGNORE INTO invite_tokens (token, created_at) VALUES (?,?)",
+            (token, datetime.now(TASHKENT_TZ).strftime("%Y-%m-%d %H:%M:%S"))
+        )
+
+
+def use_invite_token(token: str) -> bool:
+    """Returns True if token was valid and unused."""
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT used FROM invite_tokens WHERE token=?", (token,)
+        ).fetchone()
+        if row and row["used"] == 0:
+            conn.execute(
+                "UPDATE invite_tokens SET used=1 WHERE token=?", (token,)
+            )
+            return True
+        return False
 
 
 # ── Share helpers ─────────────────────────────────────────────────────────────
