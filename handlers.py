@@ -37,10 +37,23 @@ def pct(part: float, whole: float) -> float:
     return round(part / whole * 100, 1) if whole > 0 else 0.0
 
 
-def progress_bar(percent: float, length: int = 10) -> str:
-    filled = int(min(percent, 100) / 100 * length)
-    empty  = length - filled
-    return "█" * filled + "░" * empty
+def progress_bar(percent: float) -> str:
+    """Return emoji-based progress indicator."""
+    p = min(percent, 100)
+    if p == 0:
+        return "⬜⬜⬜⬜⬜"
+    elif p <= 20:
+        return "🟩⬜⬜⬜⬜"
+    elif p <= 40:
+        return "🟩🟩⬜⬜⬜"
+    elif p <= 60:
+        return "🟨🟨🟨⬜⬜"
+    elif p <= 80:
+        return "🟧🟧🟧🟧⬜"
+    elif p < 100:
+        return "🟥🟥🟥🟥🟥"
+    else:
+        return "🔴🔴🔴🔴🔴"
 
 
 # ─── Reply keyboard (bottom menu) ────────────────────────────────────────────
@@ -338,14 +351,14 @@ async def handle_amount(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                            bar=bar, p=daily_pct,
                            spent=fmt(spent_t), limit=fmt(limit), cur=cur))
 
-        # 2. Monthly budget or monthly income %
+        # 2. Monthly budget (always show if budget set, else show vs income)
         if budget > 0:
             bud_pct = pct(month_spent, budget)
             bar     = progress_bar(bud_pct)
             smart.append(t("smart_budget", lang,
                            bar=bar, p=bud_pct,
                            spent=fmt(month_spent), budget=fmt(budget), cur=cur))
-        elif month_inc > 0:
+        if month_inc > 0:
             inc_pct = pct(month_spent, month_inc)
             bar     = progress_bar(inc_pct)
             smart.append(t("smart_income", lang,
