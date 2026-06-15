@@ -18,6 +18,17 @@ TEXTS = {
         "uz":"🎉 Tayyor!\n\nDaromad uchun +200000, xarajat uchun -45000 yuboring.\n📋 menyu tugmasini bosing.",
     },
     "invalid_balance":{"en":"❌ Please enter a valid number.","ru":"❌ Введите корректное число.","uz":"❌ To'g'ri raqam kiriting."},
+    "ask_daily_limit": {
+        "en": "🎯 Set your daily spending limit\n\nEnter amount (e.g. 200000) or tap Skip:",
+        "ru": "🎯 Установите дневной лимит трат\n\nВведите сумму (например 200000) или нажмите Пропустить:",
+        "uz": "🎯 Kunlik xarajat limitini belgilang\n\nSummani kiriting (masalan 200000) yoki O'tkazib yuboring:",
+    },
+    "ask_monthly_budget": {
+        "en": "📊 Set your monthly budget\n\nEnter amount (e.g. 3000000) or tap Skip:",
+        "ru": "📊 Установите месячный бюджет\n\nВведите сумму (например 3000000) или нажмите Пропустить:",
+        "uz": "📊 Oylik byudjetingizni belgilang\n\nSummani kiriting (masalan 3000000) yoki O'tkazib yuboring:",
+    },
+    "skip_btn": {"en": "⏩ Skip", "ru": "⏩ Пропустить", "uz": "⏩ O'tkazib yuborish"},
 
     # menu buttons (reply keyboard)
     "btn_today":    {"en":"📅 Today",    "ru":"📅 Сегодня",  "uz":"📅 Bugun"},

@@ -132,15 +132,57 @@ async def handle_setup_cur_callback(update: Update, ctx: ContextTypes.DEFAULT_TY
     await query.edit_message_text(t("enter_balance", lang))
 
 async def _finish_setup(update: Update, user_id: int, lang: str, amount: float):
+    """Called after balance entered — now ask daily limit."""
     cur = get_currency(user_id)
     set_initial_balance(user_id, amount)
+    _setup_state[user_id] = "daily_limit"
+    skip_kb = InlineKeyboardMarkup([
+        [InlineKeyboardButton(t("skip_btn", lang), callback_data="setup_skip:daily_limit")]
+    ])
+    await update.message.reply_text(
+        t("balance_set", lang, bal=fmt(amount), cur=cur) + "\n\n" +
+        t("ask_daily_limit", lang),
+        reply_markup=skip_kb
+    )
+
+
+async def _ask_monthly_budget(update_or_query, user_id: int, lang: str, is_callback: bool = False):
+    """Ask for monthly budget after daily limit step."""
+    _setup_state[user_id] = "monthly_budget"
+    skip_kb = InlineKeyboardMarkup([
+        [InlineKeyboardButton(t("skip_btn", lang), callback_data="setup_skip:monthly_budget")]
+    ])
+    text = t("ask_monthly_budget", lang)
+    if is_callback:
+        await update_or_query.edit_message_text(text, reply_markup=skip_kb)
+    else:
+        await update_or_query.message.reply_text(text, reply_markup=skip_kb)
+
+
+async def _complete_setup(update_or_query, user_id: int, lang: str, is_callback: bool = False):
+    """Final step — setup done."""
     set_setup_done(user_id)
     _setup_state.pop(user_id, None)
-    name = update.effective_user.first_name or ""
-    await update.message.reply_text(
-        t("balance_set", lang, bal=fmt(amount), cur=cur) + "\n\n" + t("setup_done", lang),
-        reply_markup=main_keyboard(lang)
-    )
+    name = ""
+    text = t("setup_done", lang)
+    if is_callback:
+        await update_or_query.edit_message_text(text)
+        await update_or_query.message.reply_text("🎉", reply_markup=main_keyboard(lang))
+    else:
+        await update_or_query.message.reply_text(text, reply_markup=main_keyboard(lang))
+
+
+async def handle_setup_skip_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """User tapped Skip during setup."""
+    query = update.callback_query
+    await query.answer()
+    user_id = update.effective_user.id
+    lang    = get_lang(user_id) or "en"
+    step    = query.data.split(":")[1]
+    if step == "daily_limit":
+        await _ask_monthly_budget(query, user_id, lang, is_callback=True)
+    elif step == "monthly_budget":
+        await _complete_setup(query, user_id, lang, is_callback=True)
 
 
 # ─── Settings ─────────────────────────────────────────────────────────────────
@@ -246,8 +288,9 @@ async def handle_amount(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     # ── setup not done ──
     if not is_setup_done(user_id):
         state = _setup_state.get(user_id)
+        lang  = get_lang(user_id) or "en"
+
         if state == "balance":
-            lang = get_lang(user_id) or "en"
             raw = text.replace(" ","").replace(",","").replace(".","")
             try:
                 amount = float(raw)
@@ -255,6 +298,33 @@ async def handle_amount(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             except ValueError:
                 await update.message.reply_text(t("invalid_balance", lang)); return
             await _finish_setup(update, user_id, lang, amount)
+
+        elif state == "daily_limit":
+            raw = text.replace(" ","").replace(",","").replace(".","")
+            try:
+                amount = float(raw)
+                if amount < 0: raise ValueError
+            except ValueError:
+                await update.message.reply_text(t("invalid_balance", lang)); return
+            if amount > 0:
+                set_daily_limit(user_id, amount)
+                cur = get_currency(user_id)
+                await update.message.reply_text(t("setlimit_done", lang, limit=fmt(amount), cur=cur))
+            await _ask_monthly_budget(update, user_id, lang, is_callback=False)
+
+        elif state == "monthly_budget":
+            raw = text.replace(" ","").replace(",","").replace(".","")
+            try:
+                amount = float(raw)
+                if amount < 0: raise ValueError
+            except ValueError:
+                await update.message.reply_text(t("invalid_balance", lang)); return
+            if amount > 0:
+                set_monthly_budget(user_id, amount)
+                cur = get_currency(user_id)
+                await update.message.reply_text(t("budget_set", lang, budget=fmt(amount), cur=cur))
+            await _complete_setup(update, user_id, lang, is_callback=False)
+
         else:
             await start_setup(update, user_id)
         return

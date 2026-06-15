@@ -7,6 +7,7 @@ from telegram.ext import (
 from handlers import (
     handle_amount, handle_undo_callback,
     handle_setup_lang_callback, handle_setup_cur_callback,
+    handle_setup_skip_callback,
     handle_setlang_callback, handle_setcur_callback,
     handle_cfg_callback, handle_confirm_callback,
     cmd_today, cmd_week, cmd_month, cmd_all, cmd_balance,
@@ -67,6 +68,7 @@ def main():
 
     app.add_handler(CallbackQueryHandler(handle_setup_lang_callback, pattern="^setup_lang:"))
     app.add_handler(CallbackQueryHandler(handle_setup_cur_callback,  pattern="^setup_cur:"))
+    app.add_handler(CallbackQueryHandler(handle_setup_skip_callback, pattern="^setup_skip:"))
     app.add_handler(CallbackQueryHandler(handle_setlang_callback,    pattern="^setlang:"))
     app.add_handler(CallbackQueryHandler(handle_setcur_callback,     pattern="^setcur:"))
     app.add_handler(CallbackQueryHandler(handle_cfg_callback,        pattern="^cfg:"))
