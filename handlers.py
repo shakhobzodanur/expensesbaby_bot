@@ -191,6 +191,11 @@ async def handle_setup_skip_callback(update: Update, ctx: ContextTypes.DEFAULT_T
 
 async def cmd_settings(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
+    if not is_allowed(user_id):
+        tg_lang = update.effective_user.language_code or "en"
+        pl = "ru" if tg_lang.startswith("ru") else "uz" if tg_lang.startswith("uz") else "en"
+        await update.message.reply_text(t("promo", pl), parse_mode="Markdown")
+        return
     if not is_setup_done(user_id):
         await start_setup(update, user_id); return
     lang = get_lang(user_id) or "en"
@@ -285,19 +290,11 @@ AMOUNT_RE = re.compile(r"^([+-])(\d[\d\s.,]*)$")
 async def handle_amount(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
 
-    # ── whitelist check ──
+    # ── whitelist check — block everyone not in whitelist ──
     if not is_allowed(user_id):
-        # detect user language from Telegram
         tg_lang = update.effective_user.language_code or "en"
-        if tg_lang.startswith("ru"):
-            promo_lang = "ru"
-        elif tg_lang.startswith("uz"):
-            promo_lang = "uz"
-        else:
-            promo_lang = "en"
-        await update.message.reply_text(
-            t("promo", promo_lang), parse_mode="Markdown"
-        )
+        promo_lang = "ru" if tg_lang.startswith("ru") else "uz" if tg_lang.startswith("uz") else "en"
+        await update.message.reply_text(t("promo", promo_lang), parse_mode="Markdown")
         return
 
     ensure_user(user_id)
@@ -526,6 +523,12 @@ def _sl(stats: dict, lang: str, cur: str) -> str:
 
 async def _guard(update: Update):
     uid = update.effective_user.id
+    # whitelist check first
+    if not is_allowed(uid):
+        tg_lang = update.effective_user.language_code or "en"
+        pl = "ru" if tg_lang.startswith("ru") else "uz" if tg_lang.startswith("uz") else "en"
+        await update.message.reply_text(t("promo", pl), parse_mode="Markdown")
+        return None, None, None
     if not is_setup_done(uid):
         await start_setup(update, uid)
         return None, None, None
@@ -600,6 +603,8 @@ async def cmd_language(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
+    tg_lang = update.effective_user.language_code or "en"
+    promo_lang = "ru" if tg_lang.startswith("ru") else "uz" if tg_lang.startswith("uz") else "en"
 
     # ── handle invite token ──
     if ctx.args and len(ctx.args) > 0:
@@ -607,20 +612,16 @@ async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         if token.startswith("inv_"):
             if use_invite_token(token):
                 allow_user(user_id)
-                tg_lang = update.effective_user.language_code or "en"
-                lang = "ru" if tg_lang.startswith("ru") else "uz" if tg_lang.startswith("uz") else "en"
-                await update.message.reply_text(t("invite_used", lang))
+                await update.message.reply_text(t("invite_used", promo_lang))
                 ensure_user(user_id)
                 await start_setup(update, user_id)
                 return
             else:
-                await update.message.reply_text(t("invite_invalid", "en"))
+                await update.message.reply_text(t("invite_invalid", promo_lang))
                 return
 
-    # ── whitelist check ──
+    # ── whitelist check — always show promo + contact if not allowed ──
     if not is_allowed(user_id):
-        tg_lang = update.effective_user.language_code or "en"
-        promo_lang = "ru" if tg_lang.startswith("ru") else "uz" if tg_lang.startswith("uz") else "en"
         await update.message.reply_text(t("promo", promo_lang), parse_mode="Markdown")
         return
 
