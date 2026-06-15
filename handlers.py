@@ -37,6 +37,12 @@ def pct(part: float, whole: float) -> float:
     return round(part / whole * 100, 1) if whole > 0 else 0.0
 
 
+def progress_bar(percent: float, length: int = 10) -> str:
+    filled = int(min(percent, 100) / 100 * length)
+    empty  = length - filled
+    return "█" * filled + "░" * empty
+
+
 # ─── Reply keyboard (bottom menu) ────────────────────────────────────────────
 
 def main_keyboard(lang: str) -> ReplyKeyboardMarkup:
@@ -314,13 +320,50 @@ async def handle_amount(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     ]
 
     if entry_type == "expense":
-        if bal > 0:
-            parts += ["", t("pct_of_balance", lang, pct=pct(value, bal))]
-        if overall["income"] > 0:
-            parts.append(t("pct_spent_of_earned", lang, pct=pct(overall["expenses"], overall["income"])))
+        month_stats  = get_month_stats(user_id)
+        limit        = get_daily_limit(user_id)
+        budget       = get_monthly_budget(user_id)
+        month_inc    = month_stats["income"]
+        month_spent  = month_stats["expenses"]
 
-        # daily limit
-        limit = get_daily_limit(user_id)
+        # ── Smart Stats block ──
+        smart = []
+
+        # 1. Daily limit %
+        if limit > 0:
+            spent_t   = today["expenses"]
+            daily_pct = pct(spent_t, limit)
+            bar       = progress_bar(daily_pct)
+            smart.append(t("smart_daily", lang,
+                           bar=bar, p=daily_pct,
+                           spent=fmt(spent_t), limit=fmt(limit), cur=cur))
+
+        # 2. Monthly budget or monthly income %
+        if budget > 0:
+            bud_pct = pct(month_spent, budget)
+            bar     = progress_bar(bud_pct)
+            smart.append(t("smart_budget", lang,
+                           bar=bar, p=bud_pct,
+                           spent=fmt(month_spent), budget=fmt(budget), cur=cur))
+        elif month_inc > 0:
+            inc_pct = pct(month_spent, month_inc)
+            bar     = progress_bar(inc_pct)
+            smart.append(t("smart_income", lang,
+                           bar=bar, p=inc_pct,
+                           spent=fmt(month_spent), income=fmt(month_inc), cur=cur))
+
+        # 3. Balance %
+        if bal > 0:
+            bal_pct = pct(value, bal)
+            bar     = progress_bar(bal_pct)
+            smart.append(t("smart_balance", lang,
+                           bar=bar, p=bal_pct,
+                           spent=fmt(value), balance=fmt(bal), cur=cur))
+
+        if smart:
+            parts += ["", t("smart_title", lang)] + smart
+
+        # ── Warnings ──
         if limit > 0:
             spent_t = today["expenses"]
             if spent_t >= limit:
@@ -328,10 +371,7 @@ async def handle_amount(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             elif spent_t >= limit * NEAR_THRESHOLD:
                 parts += ["", t("limit_near", lang, pct=pct(spent_t, limit), spent=fmt(spent_t), limit=fmt(limit), cur=cur)]
 
-        # monthly budget
-        budget = get_monthly_budget(user_id)
         if budget > 0:
-            month_spent = get_month_stats(user_id)["expenses"]
             if month_spent >= budget:
                 parts += ["", t("budget_over", lang, spent=fmt(month_spent), budget=fmt(budget), cur=cur)]
             elif month_spent >= budget * NEAR_THRESHOLD:
@@ -350,6 +390,7 @@ async def handle_amount(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton(t("undo_btn", lang), callback_data=f"undo:{entry_id}")]
     ])
     await update.message.reply_text("\n".join(parts), reply_markup=keyboard)
+
 
 
 async def handle_undo_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):

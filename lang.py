@@ -122,6 +122,29 @@ TEXTS = {
         "uz":"📖 +200000 yoki -45000 yuboring.\n↩️ Bekor qilish tugmasi oxirgi yozuvni o'chiradi.\n\nMenyu tugmalari:\n📅 Bugun\n📆 Hafta\n🗓 Oy\n💰 Balans\n⚙️ Sozlamalar\n❓ Yordam\n\nBoshqa buyruqlar:\n/all — umumiy\n/myid — ID\n/share <id> — ulashish\n/viewstats — ulashilgan statistika",
     },
 
+    # smart stats text
+    "smart_title":   {"en":"📊 Smart Stats","ru":"📊 Smart Stats","uz":"📊 Smart Stats"},
+    "smart_daily":   {
+        "en":"{bar} {p}%  •  Daily limit ({spent}/{limit} {cur})",
+        "ru":"{bar} {p}%  •  День. лимит ({spent}/{limit} {cur})",
+        "uz":"{bar} {p}%  •  Kun. limit ({spent}/{limit} {cur})",
+    },
+    "smart_budget":  {
+        "en":"{bar} {p}%  •  Mth budget ({spent}/{budget} {cur})",
+        "ru":"{bar} {p}%  •  Мес. бюджет ({spent}/{budget} {cur})",
+        "uz":"{bar} {p}%  •  Oy. byudjet ({spent}/{budget} {cur})",
+    },
+    "smart_income":  {
+        "en":"{bar} {p}%  •  Mth income ({spent}/{income} {cur})",
+        "ru":"{bar} {p}%  •  Мес. доход ({spent}/{income} {cur})",
+        "uz":"{bar} {p}%  •  Oy. daromad ({spent}/{income} {cur})",
+    },
+    "smart_balance": {
+        "en":"{bar} {p}%  •  Of balance ({spent}/{balance} {cur})",
+        "ru":"{bar} {p}%  •  От баланса ({spent}/{balance} {cur})",
+        "uz":"{bar} {p}%  •  Balansdan ({spent}/{balance} {cur})",
+    },
+
     # scheduled
     "daily_summary":  {"en":"📅 Daily Summary", "ru":"📅 Итог дня",    "uz":"📅 Kunlik hisobot"},
     "weekly_summary": {"en":"📆 Weekly Summary","ru":"📆 Итог недели","uz":"📆 Haftalik hisobot"},
