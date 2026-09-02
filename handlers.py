@@ -141,8 +141,9 @@ async def _finish_setup(update: Update, user_id: int, lang: str, amount: float):
     skip_kb = InlineKeyboardMarkup([
         [InlineKeyboardButton(t("skip_btn", lang), callback_data="setup_skip:daily_limit")]
     ])
-    await update.message.reply_text(
-        t("balance_set", lang, bal=fmt(amount), cur=cur) + "\n\n" +
+       await update.message.reply_text(
+        t("invite_text", "en", link=link)
+    )
         t("ask_daily_limit", lang),
         reply_markup=skip_kb
     )
