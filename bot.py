@@ -1,4 +1,4 @@
-import os, logging, pytz
+import os, logging, pytz, asyncio, sys
 from telegram import BotCommand
 from telegram.ext import (
     Application, CommandHandler, MessageHandler,
@@ -45,6 +45,14 @@ def main():
     if not token:
         raise ValueError("BOT_TOKEN not set")
 
+    # Fix for Python 3.10+ / 3.14 — ensure an event loop exists on main thread
+    if sys.version_info >= (3, 10):
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
     app = (Application.builder()
            .token(token)
            .post_init(post_init)
@@ -82,7 +90,7 @@ def main():
 
     setup_scheduler(app, TZ)
     logging.info("Bot started")
-    app.run_polling(drop_pending_updates=True)
+    app.run_polling(drop_pending_updates=True, close_loop=False)
 
 
 if __name__ == "__main__":
