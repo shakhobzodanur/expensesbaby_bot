@@ -1,4 +1,5 @@
 import re
+import secrets
 from telegram import (
     Update, InlineKeyboardButton, InlineKeyboardMarkup,
     ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
@@ -26,18 +27,17 @@ init_db()
 NEAR_THRESHOLD = 0.8
 SPIKE_RATIO    = 1.30
 
-_setup_state: dict = {}   # user_id → 'lang'|'currency'|'balance'
+_setup_state: dict = {}   # user_id → 'lang'|'currency'|'balance'|'daily_limit'|'monthly_budget'
 _awaiting:    dict = {}   # user_id → 'balance'|'limit'|'budget'
 
 
-# ─── Helpers ──────────────────────────────────────────────────────────────────
+# ── Helpers ────────────────────────────────────────────────────────────────────
 
 def fmt(amount: float) -> str:
     return f"{amount:,.0f}".replace(",", " ")
 
 def pct(part: float, whole: float) -> float:
     return round(part / whole * 100, 1) if whole > 0 else 0.0
-
 
 def progress_bar(percent: float) -> str:
     """Return emoji-based progress indicator."""
@@ -58,7 +58,7 @@ def progress_bar(percent: float) -> str:
         return "🔴🔴🔴🔴🔴"
 
 
-# ─── Reply keyboard (bottom menu) ────────────────────────────────────────────
+# ── Reply keyboard (bottom menu) ──────────────────────────────────────────────
 
 def main_keyboard(lang: str) -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
@@ -72,7 +72,7 @@ def main_keyboard(lang: str) -> ReplyKeyboardMarkup:
     )
 
 
-# ─── Inline keyboards ─────────────────────────────────────────────────────────
+# ── Inline keyboards ───────────────────────────────────────────────────────────
 
 def lang_keyboard(prefix="setlang") -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
@@ -102,8 +102,15 @@ def confirm_keyboard(action: str, lang: str) -> InlineKeyboardMarkup:
         InlineKeyboardButton(t("reset_no",  lang), callback_data=f"confirm:{action}:no"),
     ]])
 
+def invite_share_keyboard(link: str, lang: str) -> InlineKeyboardMarkup:
+    """One-tap 'Share' button that opens Telegram's native share sheet."""
+    share_url = f"https://t.me/share/url?url={link}"
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton(t("share_button", lang), url=share_url)]
+    ])
 
-# ─── Setup flow ───────────────────────────────────────────────────────────────
+
+# ── Setup flow ─────────────────────────────────────────────────────────────────
 
 async def start_setup(update: Update, user_id: int):
     ensure_user(user_id)
@@ -141,9 +148,8 @@ async def _finish_setup(update: Update, user_id: int, lang: str, amount: float):
     skip_kb = InlineKeyboardMarkup([
         [InlineKeyboardButton(t("skip_btn", lang), callback_data="setup_skip:daily_limit")]
     ])
-       await update.message.reply_text(
-        t("invite_text", "en", link=link)
-    )
+    await update.message.reply_text(
+        t("balance_set", lang, bal=fmt(amount), cur=cur) + "\n\n" +
         t("ask_daily_limit", lang),
         reply_markup=skip_kb
     )
@@ -166,7 +172,6 @@ async def _complete_setup(update_or_query, user_id: int, lang: str, is_callback:
     """Final step — setup done."""
     set_setup_done(user_id)
     _setup_state.pop(user_id, None)
-    name = ""
     text = t("setup_done", lang)
     if is_callback:
         await update_or_query.edit_message_text(text)
@@ -188,7 +193,7 @@ async def handle_setup_skip_callback(update: Update, ctx: ContextTypes.DEFAULT_T
         await _complete_setup(query, user_id, lang, is_callback=True)
 
 
-# ─── Settings ─────────────────────────────────────────────────────────────────
+# ── Settings ───────────────────────────────────────────────────────────────────
 
 async def cmd_settings(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -256,7 +261,6 @@ async def handle_setlang_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE
     lang = query.data.split(":")[1]
     set_lang(user_id, lang)
     await query.edit_message_text(t("language_set", lang))
-    # refresh keyboard in correct language
     await query.message.reply_text("✅", reply_markup=main_keyboard(lang))
 
 async def handle_setcur_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -284,14 +288,14 @@ async def handle_confirm_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE
         await query.edit_message_text(t("reset_today_done", lang))
 
 
-# ─── Text/amount handler ──────────────────────────────────────────────────────
+# ── Text / amount handler ───────────────────────────────────────────────────────
 
 AMOUNT_RE = re.compile(r"^([+-])(\d[\d\s.,]*)$")
 
 async def handle_amount(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
 
-    # ── whitelist check — block everyone not in whitelist ──
+    # ── whitelist check ──
     if not is_allowed(user_id):
         tg_lang = update.effective_user.language_code or "en"
         promo_lang = "ru" if tg_lang.startswith("ru") else "uz" if tg_lang.startswith("uz") else "en"
@@ -428,7 +432,6 @@ async def handle_amount(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         # ── Smart Stats block ──
         smart = []
 
-        # 1. Daily limit %
         if limit > 0:
             spent_t   = today["expenses"]
             daily_pct = pct(spent_t, limit)
@@ -437,7 +440,6 @@ async def handle_amount(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                            bar=bar, p=daily_pct,
                            spent=fmt(spent_t), limit=fmt(limit), cur=cur))
 
-        # 2. Monthly budget (always show if budget set, else show vs income)
         if budget > 0:
             bud_pct = pct(month_spent, budget)
             bar     = progress_bar(bud_pct)
@@ -451,7 +453,6 @@ async def handle_amount(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                            bar=bar, p=inc_pct,
                            spent=fmt(month_spent), income=fmt(month_inc), cur=cur))
 
-        # 3. Balance %
         if bal > 0:
             bal_pct = pct(value, bal)
             bar     = progress_bar(bal_pct)
@@ -476,7 +477,6 @@ async def handle_amount(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             elif month_spent >= budget * NEAR_THRESHOLD:
                 parts += ["", t("budget_warn", lang, pct=pct(month_spent, budget), spent=fmt(month_spent), budget=fmt(budget), cur=cur)]
 
-        # weekly spike
         this_week = get_week_stats(user_id)["expenses"]
         last_week = get_last_week_expenses(user_id)
         if last_week > 0 and this_week > last_week * SPIKE_RATIO:
@@ -489,7 +489,6 @@ async def handle_amount(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton(t("undo_btn", lang), callback_data=f"undo:{entry_id}")]
     ])
     await update.message.reply_text("\n".join(parts), reply_markup=keyboard)
-
 
 
 async def handle_undo_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -513,7 +512,7 @@ async def handle_undo_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text(t("undo_fail", lang))
 
 
-# ─── Summary helpers ──────────────────────────────────────────────────────────
+# ── Summary helpers ────────────────────────────────────────────────────────────
 
 def _sl(stats: dict, lang: str, cur: str) -> str:
     bal = stats["income"] - stats["expenses"]
@@ -524,7 +523,6 @@ def _sl(stats: dict, lang: str, cur: str) -> str:
 
 async def _guard(update: Update):
     uid = update.effective_user.id
-    # whitelist check first
     if not is_allowed(uid):
         tg_lang = update.effective_user.language_code or "en"
         pl = "ru" if tg_lang.startswith("ru") else "uz" if tg_lang.startswith("uz") else "en"
@@ -562,7 +560,6 @@ async def _show_balance(update: Update, ctx):
     await update.message.reply_text(
         f"{emoji} {t('cur_balance', lang)}\n\n💰 {sign}{fmt(abs(bal))} {cur}")
 
-# public aliases for CommandHandlers
 async def cmd_today(update, ctx):  await _show_today(update, ctx)
 async def cmd_week(update, ctx):   await _show_week(update, ctx)
 async def cmd_month(update, ctx):  await _show_month(update, ctx)
@@ -610,7 +607,7 @@ async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     # ── handle invite token ──
     if ctx.args and len(ctx.args) > 0:
         token = ctx.args[0]
-        if token.startswith("inv_"):
+        if token.startswith("inv"):
             if use_invite_token(token):
                 allow_user(user_id)
                 await update.message.reply_text(t("invite_used", promo_lang))
@@ -635,9 +632,7 @@ async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         t("welcome", lang, name=name), reply_markup=main_keyboard(lang))
 
 
-# ── Admin / Owner commands ────────────────────────────────────────────────────
-
-import secrets
+# ── Admin / Owner commands ──────────────────────────────────────────────────────
 
 async def cmd_allow(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != get_owner_id():
@@ -673,31 +668,30 @@ async def cmd_users(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(t("users_empty", "en")); return
     lines = [t("users_title", "en"), ""]
     for i, uid in enumerate(users, 1):
-        lines.append(f"{i}. `{uid}`")
-    lines.append(f"\n👥 Total: {len(users)}")
-    await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
+        lines.append(f"{i}. {uid}")
+    lines.append(f"\nTotal: {len(users)}")
+    await update.message.reply_text("\n".join(lines))
 
 
 async def cmd_invite(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Generate a one-tap invite link with a native Telegram Share button."""
     if update.effective_user.id != get_owner_id():
         await update.message.reply_text(t("owner_only", "en")); return
-    token = "inv_" + secrets.token_urlsafe(12)
+
+    lang = get_lang(update.effective_user.id) or "en"
+    token = "inv" + secrets.token_hex(8)
     create_invite_token(token)
     bot_username = (await ctx.bot.get_me()).username
     link = f"https://t.me/{bot_username}?start={token}"
+
+    # No Markdown parse_mode — avoids underscore in username breaking the link
     await update.message.reply_text(
-        t("invite_text", "en", link=link), parse_mode="Markdown"
+        t("invite_text", lang, link=link),
+        reply_markup=invite_share_keyboard(link, lang)
     )
 
-async def cmd_help(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    uid, lang, _ = await _guard(update)
-    if uid is None: return
-    await update.message.reply_text(t("help", lang))
 
-async def cmd_myid(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    uid  = update.effective_user.id
-    lang = get_lang(uid) or "en"
-    await update.message.reply_text(t("myid", lang, id=uid))
+# ── Share & other utility commands ──────────────────────────────────────────────
 
 async def cmd_share(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     uid, lang, _ = await _guard(update)
@@ -722,6 +716,16 @@ async def cmd_unshare(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(t("share_invalid", lang)); return
     remove_share(uid, vid)
     await update.message.reply_text(t("unshare_done", lang, id=vid))
+
+async def cmd_help(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    uid, lang, _ = await _guard(update)
+    if uid is None: return
+    await update.message.reply_text(t("help", lang))
+
+async def cmd_myid(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    uid  = update.effective_user.id
+    lang = get_lang(uid) or "en"
+    await update.message.reply_text(t("myid", lang, id=uid))
 
 async def cmd_viewstats(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     uid  = update.effective_user.id
