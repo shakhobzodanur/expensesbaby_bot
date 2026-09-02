@@ -1,8 +1,9 @@
 import re
 import secrets
+import logging
 from telegram import (
     Update, InlineKeyboardButton, InlineKeyboardMarkup,
-    ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
+    ReplyKeyboardMarkup, KeyboardButton, InputFile
 )
 from telegram.ext import ContextTypes
 from database import (
@@ -14,21 +15,30 @@ from database import (
     get_monthly_budget, set_monthly_budget,
     get_initial_balance, set_initial_balance,
     is_setup_done, set_setup_done,
+    get_reminders_on, set_reminders_on,
+    get_categories_on, set_categories_on,
     add_entry, delete_entry,
     get_today_stats, get_week_stats, get_month_stats,
     get_all_stats, get_balance, get_last_week_expenses,
+    get_week_by_category, get_month_by_category,
+    get_week_daily_totals, get_all_entries,
     add_share, remove_share, get_shared_owners,
-    reset_all, reset_today
+    reset_all, reset_today,
+    EXPENSE_CATEGORIES,
 )
-from lang import t, LANGUAGES, CURRENCIES
+from lang import t, LANGUAGES, CURRENCIES, cat_name
+from charts import generate_week_chart
+from excel_export import generate_excel
 
 init_db()
+logger = logging.getLogger(__name__)
 
 NEAR_THRESHOLD = 0.8
 SPIKE_RATIO    = 1.30
 
-_setup_state: dict = {}   # user_id → 'lang'|'currency'|'balance'|'daily_limit'|'monthly_budget'
+_setup_state: dict = {}   # user_id → step name
 _awaiting:    dict = {}   # user_id → 'balance'|'limit'|'budget'
+_pending_expense: dict = {}  # user_id → {"value": float, "entry_id": int} awaiting category pick
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
@@ -40,7 +50,6 @@ def pct(part: float, whole: float) -> float:
     return round(part / whole * 100, 1) if whole > 0 else 0.0
 
 def progress_bar(percent: float) -> str:
-    """Return emoji-based progress indicator."""
     p = min(percent, 100)
     if p == 0:
         return "⬜⬜⬜⬜⬜"
@@ -56,6 +65,10 @@ def progress_bar(percent: float) -> str:
         return "🟥🟥🟥🟥🟥"
     else:
         return "🔴🔴🔴🔴🔴"
+
+def get_promo_lang(update: Update) -> str:
+    tg_lang = update.effective_user.language_code or "en"
+    return "ru" if tg_lang.startswith("ru") else "uz" if tg_lang.startswith("uz") else "en"
 
 
 # ── Reply keyboard (bottom menu) ──────────────────────────────────────────────
@@ -85,13 +98,36 @@ def currency_keyboard(prefix="setcur") -> InlineKeyboardMarkup:
         [InlineKeyboardButton(c, callback_data=f"{prefix}:{c}") for c in CURRENCIES]
     ])
 
-def settings_keyboard(lang: str) -> InlineKeyboardMarkup:
+def categories_choice_keyboard(lang: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton(t("categories_yes", lang), callback_data="setup_cat:yes")],
+        [InlineKeyboardButton(t("categories_no",  lang), callback_data="setup_cat:no")],
+    ])
+
+def category_picker_keyboard(lang: str) -> InlineKeyboardMarkup:
+    rows = []
+    row = []
+    for icon, key in EXPENSE_CATEGORIES:
+        row.append(InlineKeyboardButton(f"{icon} {cat_name(key, lang)}", callback_data=f"pickcat:{key}"))
+        if len(row) == 2:
+            rows.append(row)
+            row = []
+    if row:
+        rows.append(row)
+    return InlineKeyboardMarkup(rows)
+
+def settings_keyboard(lang: str, categories_on: bool, reminders_on: bool) -> InlineKeyboardMarkup:
+    cat_status = "✅" if categories_on else "◻️"
+    rem_status = "✅" if reminders_on else "◻️"
     return InlineKeyboardMarkup([
         [InlineKeyboardButton(t("set_language", lang), callback_data="cfg:language"),
          InlineKeyboardButton(t("set_currency", lang), callback_data="cfg:currency")],
         [InlineKeyboardButton(t("set_balance",  lang), callback_data="cfg:balance"),
          InlineKeyboardButton(t("set_limit",    lang), callback_data="cfg:limit")],
         [InlineKeyboardButton(t("set_budget",   lang), callback_data="cfg:budget")],
+        [InlineKeyboardButton(f"{cat_status} {t('set_categories', lang)}", callback_data="cfg:toggle_cat"),
+         InlineKeyboardButton(f"{rem_status} {t('set_reminders', lang)}", callback_data="cfg:toggle_rem")],
+        [InlineKeyboardButton(t("export_btn", lang), callback_data="cfg:export")],
         [InlineKeyboardButton(t("reset_today_btn", lang), callback_data="cfg:reset_today"),
          InlineKeyboardButton(t("reset_all_btn",   lang), callback_data="cfg:reset_all")],
     ])
@@ -103,7 +139,6 @@ def confirm_keyboard(action: str, lang: str) -> InlineKeyboardMarkup:
     ]])
 
 def invite_share_keyboard(link: str, lang: str) -> InlineKeyboardMarkup:
-    """One-tap 'Share' button that opens Telegram's native share sheet."""
     share_url = f"https://t.me/share/url?url={link}"
     return InlineKeyboardMarkup([
         [InlineKeyboardButton(t("share_button", lang), url=share_url)]
@@ -154,9 +189,7 @@ async def _finish_setup(update: Update, user_id: int, lang: str, amount: float):
         reply_markup=skip_kb
     )
 
-
 async def _ask_monthly_budget(update_or_query, user_id: int, lang: str, is_callback: bool = False):
-    """Ask for monthly budget after daily limit step."""
     _setup_state[user_id] = "monthly_budget"
     skip_kb = InlineKeyboardMarkup([
         [InlineKeyboardButton(t("skip_btn", lang), callback_data="setup_skip:monthly_budget")]
@@ -167,9 +200,16 @@ async def _ask_monthly_budget(update_or_query, user_id: int, lang: str, is_callb
     else:
         await update_or_query.message.reply_text(text, reply_markup=skip_kb)
 
+async def _ask_categories(update_or_query, user_id: int, lang: str, is_callback: bool = False):
+    _setup_state[user_id] = "categories"
+    text = t("ask_categories", lang)
+    kb = categories_choice_keyboard(lang)
+    if is_callback:
+        await update_or_query.edit_message_text(text, reply_markup=kb)
+    else:
+        await update_or_query.message.reply_text(text, reply_markup=kb)
 
 async def _complete_setup(update_or_query, user_id: int, lang: str, is_callback: bool = False):
-    """Final step — setup done."""
     set_setup_done(user_id)
     _setup_state.pop(user_id, None)
     text = t("setup_done", lang)
@@ -179,9 +219,7 @@ async def _complete_setup(update_or_query, user_id: int, lang: str, is_callback:
     else:
         await update_or_query.message.reply_text(text, reply_markup=main_keyboard(lang))
 
-
 async def handle_setup_skip_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    """User tapped Skip during setup."""
     query = update.callback_query
     await query.answer()
     user_id = update.effective_user.id
@@ -190,7 +228,16 @@ async def handle_setup_skip_callback(update: Update, ctx: ContextTypes.DEFAULT_T
     if step == "daily_limit":
         await _ask_monthly_budget(query, user_id, lang, is_callback=True)
     elif step == "monthly_budget":
-        await _complete_setup(query, user_id, lang, is_callback=True)
+        await _ask_categories(query, user_id, lang, is_callback=True)
+
+async def handle_setup_cat_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    user_id = update.effective_user.id
+    lang    = get_lang(user_id) or "en"
+    choice  = query.data.split(":")[1]
+    set_categories_on(user_id, choice == "yes")
+    await _complete_setup(query, user_id, lang, is_callback=True)
 
 
 # ── Settings ───────────────────────────────────────────────────────────────────
@@ -198,9 +245,7 @@ async def handle_setup_skip_callback(update: Update, ctx: ContextTypes.DEFAULT_T
 async def cmd_settings(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     if not is_allowed(user_id):
-        tg_lang = update.effective_user.language_code or "en"
-        pl = "ru" if tg_lang.startswith("ru") else "uz" if tg_lang.startswith("uz") else "en"
-        await update.message.reply_text(t("promo", pl), parse_mode="Markdown")
+        await update.message.reply_text(t("promo", get_promo_lang(update)), parse_mode="Markdown")
         return
     if not is_setup_done(user_id):
         await start_setup(update, user_id); return
@@ -218,7 +263,7 @@ async def cmd_settings(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     )
     await update.message.reply_text(
         f"{t('settings_title', lang)}\n\n{info}",
-        reply_markup=settings_keyboard(lang)
+        reply_markup=settings_keyboard(lang, get_categories_on(user_id), get_reminders_on(user_id))
     )
 
 async def handle_cfg_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -245,6 +290,16 @@ async def handle_cfg_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     elif action == "budget":
         _awaiting[user_id] = "budget"
         await query.edit_message_text(t("enter_budget", lang))
+    elif action == "toggle_cat":
+        new_val = not get_categories_on(user_id)
+        set_categories_on(user_id, new_val)
+        await query.edit_message_text(t("categories_on" if new_val else "categories_off", lang))
+    elif action == "toggle_rem":
+        new_val = not get_reminders_on(user_id)
+        set_reminders_on(user_id, new_val)
+        await query.edit_message_text(t("reminders_on" if new_val else "reminders_off", lang))
+    elif action == "export":
+        await _do_export(query.message, user_id, lang, cur, is_callback_msg=True)
     elif action == "reset_today":
         await query.edit_message_text(
             t("reset_today_confirm", lang),
@@ -288,6 +343,31 @@ async def handle_confirm_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE
         await query.edit_message_text(t("reset_today_done", lang))
 
 
+# ── Category picker callback ────────────────────────────────────────────────────
+
+async def handle_pickcat_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """User picked a category for their pending expense."""
+    query = update.callback_query
+    await query.answer()
+    user_id = update.effective_user.id
+    lang    = get_lang(user_id) or "en"
+    cur     = get_currency(user_id)
+    cat_key = query.data.split(":")[1]
+
+    pending = _pending_expense.pop(user_id, None)
+    if not pending:
+        await query.edit_message_text(t("generic_error", lang))
+        return
+
+    value = pending["value"]
+    entry_id = add_entry(user_id, value, "expense", category=cat_key)
+
+    await query.edit_message_text(
+        f"{t('expense', lang)}: -{fmt(value)} {cur}\n🏷 {cat_name(cat_key, lang)}"
+    )
+    await _send_expense_summary(query.message, user_id, lang, cur, value, entry_id)
+
+
 # ── Text / amount handler ───────────────────────────────────────────────────────
 
 AMOUNT_RE = re.compile(r"^([+-])(\d[\d\s.,]*)$")
@@ -295,11 +375,8 @@ AMOUNT_RE = re.compile(r"^([+-])(\d[\d\s.,]*)$")
 async def handle_amount(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
 
-    # ── whitelist check ──
     if not is_allowed(user_id):
-        tg_lang = update.effective_user.language_code or "en"
-        promo_lang = "ru" if tg_lang.startswith("ru") else "uz" if tg_lang.startswith("uz") else "en"
-        await update.message.reply_text(t("promo", promo_lang), parse_mode="Markdown")
+        await update.message.reply_text(t("promo", get_promo_lang(update)), parse_mode="Markdown")
         return
 
     ensure_user(user_id)
@@ -343,7 +420,7 @@ async def handle_amount(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                 set_monthly_budget(user_id, amount)
                 cur = get_currency(user_id)
                 await update.message.reply_text(t("budget_set", lang, budget=fmt(amount), cur=cur))
-            await _complete_setup(update, user_id, lang, is_callback=False)
+            await _ask_categories(update, user_id, lang, is_callback=False)
 
         else:
             await start_setup(update, user_id)
@@ -403,16 +480,57 @@ async def handle_amount(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(t("invalid_number", lang)); return
 
     entry_type = "income" if sign == "+" else "expense"
-    entry_id   = add_entry(user_id, value, entry_type)
 
+    # ── if categories are on and this is an expense, ask for category first ──
+    if entry_type == "expense" and get_categories_on(user_id):
+        _pending_expense[user_id] = {"value": value}
+        await update.message.reply_text(
+            t("pick_category", lang, amount=fmt(value), cur=cur),
+            reply_markup=category_picker_keyboard(lang)
+        )
+        return
+
+    entry_id = add_entry(user_id, value, entry_type)
+
+    if entry_type == "expense":
+        await _send_expense_summary(update.message, user_id, lang, cur, value, entry_id)
+    else:
+        await _send_income_summary(update.message, user_id, lang, cur, value, entry_id)
+
+
+async def _send_income_summary(message, user_id, lang, cur, value, entry_id):
     today   = get_today_stats(user_id)
     overall = get_all_stats(user_id)
     bal     = get_balance(user_id)
     bal_sign = "+" if bal >= 0 else "-"
-    amt_sign = "+" if entry_type == "income" else "-"
 
     parts = [
-        f"{t(entry_type, lang)}: {amt_sign}{fmt(value)} {cur}\n",
+        f"{t('income', lang)}: +{fmt(value)} {cur}\n",
+        f"{t('today', lang)}",
+        f"  💸 {t('spent', lang)}: {fmt(today['expenses'])} {cur}",
+        f"  💵 {t('earned', lang)}: {fmt(today['income'])} {cur}\n",
+        f"{t('all_time', lang)}",
+        f"  💸 {t('spent', lang)}: {fmt(overall['expenses'])} {cur}",
+        f"  💵 {t('earned', lang)}: {fmt(overall['income'])} {cur}",
+        f"  💰 {t('balance', lang)}: {bal_sign}{fmt(abs(bal))} {cur}",
+    ]
+    if overall["income"] > 0:
+        parts += ["", t("pct_of_earned_income", lang, pct=pct(value, overall["income"]))]
+
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton(t("undo_btn", lang), callback_data=f"undo:{entry_id}")]
+    ])
+    await message.reply_text("\n".join(parts), reply_markup=keyboard)
+
+
+async def _send_expense_summary(message, user_id, lang, cur, value, entry_id):
+    today   = get_today_stats(user_id)
+    overall = get_all_stats(user_id)
+    bal     = get_balance(user_id)
+    bal_sign = "+" if bal >= 0 else "-"
+
+    parts = [
+        f"{t('expense', lang)}: -{fmt(value)} {cur}\n",
         f"{t('today', lang)}",
         f"  💸 {t('spent', lang)}: {fmt(today['expenses'])} {cur}",
         f"  💵 {t('earned', lang)}: {fmt(today['income'])} {cur}\n",
@@ -422,73 +540,55 @@ async def handle_amount(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         f"  💰 {t('balance', lang)}: {bal_sign}{fmt(abs(bal))} {cur}",
     ]
 
-    if entry_type == "expense":
-        month_stats  = get_month_stats(user_id)
-        limit        = get_daily_limit(user_id)
-        budget       = get_monthly_budget(user_id)
-        month_inc    = month_stats["income"]
-        month_spent  = month_stats["expenses"]
+    month_stats  = get_month_stats(user_id)
+    limit        = get_daily_limit(user_id)
+    budget       = get_monthly_budget(user_id)
+    month_inc    = month_stats["income"]
+    month_spent  = month_stats["expenses"]
 
-        # ── Smart Stats block ──
-        smart = []
+    smart = []
+    if limit > 0:
+        spent_t   = today["expenses"]
+        daily_pct = pct(spent_t, limit)
+        smart.append(t("smart_daily", lang, bar=progress_bar(daily_pct), p=daily_pct,
+                       spent=fmt(spent_t), limit=fmt(limit), cur=cur))
+    if budget > 0:
+        bud_pct = pct(month_spent, budget)
+        smart.append(t("smart_budget", lang, bar=progress_bar(bud_pct), p=bud_pct,
+                       spent=fmt(month_spent), budget=fmt(budget), cur=cur))
+    if month_inc > 0:
+        inc_pct = pct(month_spent, month_inc)
+        smart.append(t("smart_income", lang, bar=progress_bar(inc_pct), p=inc_pct,
+                       spent=fmt(month_spent), income=fmt(month_inc), cur=cur))
+    if bal > 0:
+        bal_pct = pct(value, bal)
+        smart.append(t("smart_balance", lang, bar=progress_bar(bal_pct), p=bal_pct,
+                       spent=fmt(value), balance=fmt(bal), cur=cur))
+    if smart:
+        parts += ["", t("smart_title", lang)] + smart
 
-        if limit > 0:
-            spent_t   = today["expenses"]
-            daily_pct = pct(spent_t, limit)
-            bar       = progress_bar(daily_pct)
-            smart.append(t("smart_daily", lang,
-                           bar=bar, p=daily_pct,
-                           spent=fmt(spent_t), limit=fmt(limit), cur=cur))
+    if limit > 0:
+        spent_t = today["expenses"]
+        if spent_t >= limit:
+            parts += ["", t("limit_over", lang, spent=fmt(spent_t), limit=fmt(limit), cur=cur)]
+        elif spent_t >= limit * NEAR_THRESHOLD:
+            parts += ["", t("limit_near", lang, pct=pct(spent_t, limit), spent=fmt(spent_t), limit=fmt(limit), cur=cur)]
 
-        if budget > 0:
-            bud_pct = pct(month_spent, budget)
-            bar     = progress_bar(bud_pct)
-            smart.append(t("smart_budget", lang,
-                           bar=bar, p=bud_pct,
-                           spent=fmt(month_spent), budget=fmt(budget), cur=cur))
-        if month_inc > 0:
-            inc_pct = pct(month_spent, month_inc)
-            bar     = progress_bar(inc_pct)
-            smart.append(t("smart_income", lang,
-                           bar=bar, p=inc_pct,
-                           spent=fmt(month_spent), income=fmt(month_inc), cur=cur))
+    if budget > 0:
+        if month_spent >= budget:
+            parts += ["", t("budget_over", lang, spent=fmt(month_spent), budget=fmt(budget), cur=cur)]
+        elif month_spent >= budget * NEAR_THRESHOLD:
+            parts += ["", t("budget_warn", lang, pct=pct(month_spent, budget), spent=fmt(month_spent), budget=fmt(budget), cur=cur)]
 
-        if bal > 0:
-            bal_pct = pct(value, bal)
-            bar     = progress_bar(bal_pct)
-            smart.append(t("smart_balance", lang,
-                           bar=bar, p=bal_pct,
-                           spent=fmt(value), balance=fmt(bal), cur=cur))
-
-        if smart:
-            parts += ["", t("smart_title", lang)] + smart
-
-        # ── Warnings ──
-        if limit > 0:
-            spent_t = today["expenses"]
-            if spent_t >= limit:
-                parts += ["", t("limit_over", lang, spent=fmt(spent_t), limit=fmt(limit), cur=cur)]
-            elif spent_t >= limit * NEAR_THRESHOLD:
-                parts += ["", t("limit_near", lang, pct=pct(spent_t, limit), spent=fmt(spent_t), limit=fmt(limit), cur=cur)]
-
-        if budget > 0:
-            if month_spent >= budget:
-                parts += ["", t("budget_over", lang, spent=fmt(month_spent), budget=fmt(budget), cur=cur)]
-            elif month_spent >= budget * NEAR_THRESHOLD:
-                parts += ["", t("budget_warn", lang, pct=pct(month_spent, budget), spent=fmt(month_spent), budget=fmt(budget), cur=cur)]
-
-        this_week = get_week_stats(user_id)["expenses"]
-        last_week = get_last_week_expenses(user_id)
-        if last_week > 0 and this_week > last_week * SPIKE_RATIO:
-            parts += ["", t("week_spike", lang, pct=pct(this_week - last_week, last_week))]
-    else:
-        if overall["income"] > 0:
-            parts += ["", t("pct_of_earned_income", lang, pct=pct(value, overall["income"]))]
+    this_week = get_week_stats(user_id)["expenses"]
+    last_week = get_last_week_expenses(user_id)
+    if last_week > 0 and this_week > last_week * SPIKE_RATIO:
+        parts += ["", t("week_spike", lang, pct=pct(this_week - last_week, last_week))]
 
     keyboard = InlineKeyboardMarkup([
         [InlineKeyboardButton(t("undo_btn", lang), callback_data=f"undo:{entry_id}")]
     ])
-    await update.message.reply_text("\n".join(parts), reply_markup=keyboard)
+    await message.reply_text("\n".join(parts), reply_markup=keyboard)
 
 
 async def handle_undo_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -524,9 +624,7 @@ def _sl(stats: dict, lang: str, cur: str) -> str:
 async def _guard(update: Update):
     uid = update.effective_user.id
     if not is_allowed(uid):
-        tg_lang = update.effective_user.language_code or "en"
-        pl = "ru" if tg_lang.startswith("ru") else "uz" if tg_lang.startswith("uz") else "en"
-        await update.message.reply_text(t("promo", pl), parse_mode="Markdown")
+        await update.message.reply_text(t("promo", get_promo_lang(update)), parse_mode="Markdown")
         return None, None, None
     if not is_setup_done(uid):
         await start_setup(update, uid)
@@ -542,14 +640,38 @@ async def _show_today(update: Update, ctx):
 async def _show_week(update: Update, ctx):
     uid, lang, cur = await _guard(update)
     if uid is None: return
-    await update.message.reply_text(
-        f"{t('sum_week', lang)}\n\n{_sl(get_week_stats(uid), lang, cur)}")
+    stats = get_week_stats(uid)
+    text = f"{t('sum_week', lang)}\n\n{_sl(stats, lang, cur)}"
+
+    # top category this week (if categories used)
+    cats = get_week_by_category(uid)
+    if cats:
+        top_cat, top_amt = cats[0]
+        text += f"\n\n{t('top_category', lang)}: {cat_name(top_cat, lang)} — {fmt(top_amt)} {cur}"
+
+    await update.message.reply_text(text)
+
+    # send weekly chart if there's any expense data
+    try:
+        daily = get_week_daily_totals(uid)
+        if daily:
+            chart_buf = generate_week_chart(daily, currency=cur, lang=lang)
+            await update.message.reply_photo(
+                photo=chart_buf, caption=t("week_chart_caption", lang)
+            )
+    except Exception as e:
+        logger.warning(f"Chart generation failed for user {uid}: {e}")
 
 async def _show_month(update: Update, ctx):
     uid, lang, cur = await _guard(update)
     if uid is None: return
-    await update.message.reply_text(
-        f"{t('sum_month', lang)}\n\n{_sl(get_month_stats(uid), lang, cur)}")
+    stats = get_month_stats(uid)
+    text = f"{t('sum_month', lang)}\n\n{_sl(stats, lang, cur)}"
+    cats = get_month_by_category(uid)
+    if cats:
+        top_cat, top_amt = cats[0]
+        text += f"\n\n{t('top_category', lang)}: {cat_name(top_cat, lang)} — {fmt(top_amt)} {cur}"
+    await update.message.reply_text(text)
 
 async def _show_balance(update: Update, ctx):
     uid, lang, cur = await _guard(update)
@@ -601,10 +723,8 @@ async def cmd_language(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    tg_lang = update.effective_user.language_code or "en"
-    promo_lang = "ru" if tg_lang.startswith("ru") else "uz" if tg_lang.startswith("uz") else "en"
+    promo_lang = get_promo_lang(update)
 
-    # ── handle invite token ──
     if ctx.args and len(ctx.args) > 0:
         token = ctx.args[0]
         if token.startswith("inv"):
@@ -618,7 +738,6 @@ async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                 await update.message.reply_text(t("invite_invalid", promo_lang))
                 return
 
-    # ── whitelist check — always show promo + contact if not allowed ──
     if not is_allowed(user_id):
         await update.message.reply_text(t("promo", promo_lang), parse_mode="Markdown")
         return
@@ -630,6 +749,33 @@ async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     name = update.effective_user.first_name or ""
     await update.message.reply_text(
         t("welcome", lang, name=name), reply_markup=main_keyboard(lang))
+
+
+# ── Export ────────────────────────────────────────────────────────────────────
+
+async def _do_export(message, user_id: int, lang: str, cur: str, is_callback_msg: bool = False):
+    entries = get_all_entries(user_id)
+    if not entries:
+        await message.reply_text(t("export_empty", lang))
+        return
+    try:
+        bal = get_balance(user_id)
+        excel_buf = generate_excel(entries, cur, lang, bal)
+        excel_buf.name = "expenses.xlsx"
+        await message.reply_document(
+            document=excel_buf,
+            filename="expenses.xlsx",
+            caption=t("export_caption", lang)
+        )
+    except Exception as e:
+        logger.error(f"Export failed for user {user_id}: {e}")
+        await message.reply_text(t("generic_error", lang))
+
+async def cmd_export(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    uid, lang, cur = await _guard(update)
+    if uid is None: return
+    await update.message.reply_text(t("export_generating", lang))
+    await _do_export(update.message, uid, lang, cur)
 
 
 # ── Admin / Owner commands ──────────────────────────────────────────────────────
@@ -646,7 +792,6 @@ async def cmd_allow(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     allow_user(uid)
     await update.message.reply_text(t("allow_done", "en", id=uid))
 
-
 async def cmd_deny(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != get_owner_id():
         await update.message.reply_text(t("owner_only", "en")); return
@@ -658,7 +803,6 @@ async def cmd_deny(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ Invalid ID"); return
     deny_user(uid)
     await update.message.reply_text(t("deny_done", "en", id=uid))
-
 
 async def cmd_users(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != get_owner_id():
@@ -672,19 +816,14 @@ async def cmd_users(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     lines.append(f"\nTotal: {len(users)}")
     await update.message.reply_text("\n".join(lines))
 
-
 async def cmd_invite(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    """Generate a one-tap invite link with a native Telegram Share button."""
     if update.effective_user.id != get_owner_id():
         await update.message.reply_text(t("owner_only", "en")); return
-
     lang = get_lang(update.effective_user.id) or "en"
     token = "inv" + secrets.token_hex(8)
     create_invite_token(token)
     bot_username = (await ctx.bot.get_me()).username
     link = f"https://t.me/{bot_username}?start={token}"
-
-    # No Markdown parse_mode — avoids underscore in username breaking the link
     await update.message.reply_text(
         t("invite_text", lang, link=link),
         reply_markup=invite_share_keyboard(link, lang)
@@ -746,3 +885,18 @@ async def cmd_viewstats(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             f"  💰 {t('balance', lang)}: {sign}{fmt(abs(bal))} {cur}")
     await update.message.reply_text(
         f"{t('viewstats_title', lang)}\n\n" + "\n\n".join(lines))
+
+
+# ── Global error handler ────────────────────────────────────────────────────────
+
+async def error_handler(update: object, ctx: ContextTypes.DEFAULT_TYPE):
+    """Catch-all so the bot never crashes on unexpected errors."""
+    logger.error(f"Update {update} caused error: {ctx.error}", exc_info=ctx.error)
+    try:
+        if isinstance(update, Update) and update.effective_message:
+            user_id = update.effective_user.id if update.effective_user else None
+            lang = get_lang(user_id) if user_id else "en"
+            lang = lang or "en"
+            await update.effective_message.reply_text(t("generic_error", lang))
+    except Exception:
+        pass  # never let the error handler itself crash

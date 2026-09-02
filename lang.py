@@ -2,6 +2,17 @@
 LANGUAGES  = {"en": "English 🇬🇧", "ru": "Русский 🇷🇺", "uz": "O'zbekcha 🇺🇿"}
 CURRENCIES = ["UZS", "USD", "RUB"]
 
+CATEGORY_NAMES = {
+    "food":      {"en": "Food",       "ru": "Еда",        "uz": "Ovqat"},
+    "transport": {"en": "Transport",  "ru": "Транспорт",  "uz": "Transport"},
+    "home":      {"en": "Home",       "ru": "Дом",        "uz": "Uy"},
+    "health":    {"en": "Health",     "ru": "Здоровье",   "uz": "Sog'liq"},
+    "fun":       {"en": "Fun",        "ru": "Развлечения","uz": "Ko'ngilochar"},
+    "clothes":   {"en": "Clothes",    "ru": "Одежда",     "uz": "Kiyim"},
+    "education": {"en": "Education",  "ru": "Обучение",   "uz": "Ta'lim"},
+    "other":     {"en": "Other",      "ru": "Другое",     "uz": "Boshqa"},
+}
+
 TEXTS = {
     # setup
     "choose_language": {"en":"🌐 Choose your language:","ru":"🌐 Выберите язык:","uz":"🌐 Tilni tanlang:"},
@@ -28,6 +39,13 @@ TEXTS = {
         "ru": "📊 Установите месячный бюджет\n\nВведите сумму (например 3000000) или нажмите Пропустить:",
         "uz": "📊 Oylik byudjetingizni belgilang\n\nSummani kiriting (masalan 3000000) yoki O'tkazib yuboring:",
     },
+    "ask_categories": {
+        "en": "🏷 Would you like to track spending by category (food, transport, etc)?",
+        "ru": "🏷 Хотите отслеживать траты по категориям (еда, транспорт и т.д.)?",
+        "uz": "🏷 Xarajatlarni kategoriya bo'yicha kuzatmoqchimisiz (ovqat, transport va h.k.)?",
+    },
+    "categories_yes": {"en":"✅ Yes, enable categories","ru":"✅ Да, включить категории","uz":"✅ Ha, kategoriyalarni yoqish"},
+    "categories_no":  {"en":"⏩ No, keep it simple","ru":"⏩ Нет, оставить просто","uz":"⏩ Yo'q, oddiy qoldirish"},
     "skip_btn": {"en": "⏩ Skip", "ru": "⏩ Пропустить", "uz": "⏩ O'tkazib yuborish"},
 
     # menu buttons (reply keyboard)
@@ -45,10 +63,17 @@ TEXTS = {
     "set_balance":    {"en":"💰 Update Balance","ru":"💰 Изменить баланс","uz":"💰 Balansni o'zgartirish"},
     "set_limit":      {"en":"🎯 Daily Limit",   "ru":"🎯 Дневной лимит", "uz":"🎯 Kunlik limit"},
     "set_budget":     {"en":"📊 Monthly Budget","ru":"📊 Месячный бюджет","uz":"📊 Oylik byudjet"},
+    "set_categories": {"en":"🏷 Categories",    "ru":"🏷 Категории",     "uz":"🏷 Kategoriyalar"},
+    "set_reminders":  {"en":"⏰ Reminders",     "ru":"⏰ Напоминания",   "uz":"⏰ Eslatmalar"},
+    "export_btn":     {"en":"📥 Export to Excel","ru":"📥 Экспорт в Excel","uz":"📥 Excelga eksport"},
     "reset_today_btn":{"en":"📅 Reset Today",   "ru":"📅 Сбросить сегодня","uz":"📅 Bugunni nolga tushirish"},
     "reset_all_btn":  {"en":"🔄 Reset Everything","ru":"🔄 Сбросить всё","uz":"🔄 Hammasini nolga tushirish"},
     "language_set":   {"en":"✅ Language: English","ru":"✅ Язык: русский","uz":"✅ Til: o'zbekcha"},
     "currency_set":   {"en":"✅ Currency set to {cur}.","ru":"✅ Валюта: {cur}.","uz":"✅ Valyuta {cur} ga o'zgartirildi."},
+    "categories_on":  {"en":"✅ Categories enabled.","ru":"✅ Категории включены.","uz":"✅ Kategoriyalar yoqildi."},
+    "categories_off": {"en":"✅ Categories disabled.","ru":"✅ Категории отключены.","uz":"✅ Kategoriyalar o'chirildi."},
+    "reminders_on":   {"en":"✅ Daily reminders enabled.","ru":"✅ Напоминания включены.","uz":"✅ Kunlik eslatmalar yoqildi."},
+    "reminders_off":  {"en":"✅ Daily reminders disabled.","ru":"✅ Напоминания отключены.","uz":"✅ Kunlik eslatmalar o'chirildi."},
 
     # budget
     "enter_budget":  {
@@ -78,6 +103,14 @@ TEXTS = {
     "earned":   {"en":"Earned", "ru":"Доход", "uz":"Daromad"},
     "balance":  {"en":"Balance","ru":"Баланс","uz":"Balans"},
     "updated":  {"en":"Updated","ru":"Обновлено","uz":"Yangilandi"},
+    "category": {"en":"Category","ru":"Категория","uz":"Kategoriya"},
+
+    # category picker
+    "pick_category": {
+        "en": "🏷 Choose a category for this {amount} {cur} expense:",
+        "ru": "🏷 Выберите категорию для расхода {amount} {cur}:",
+        "uz": "🏷 {amount} {cur} xarajat uchun kategoriya tanlang:",
+    },
 
     # smart stats text
     "smart_title":   {"en":"📊 Smart Stats","ru":"📊 Smart Stats","uz":"📊 Smart Stats"},
@@ -121,6 +154,7 @@ TEXTS = {
     "sum_month": {"en":"🗓 This Month",     "ru":"🗓 За этот месяц","uz":"🗓 Shu oy"},
     "sum_all":   {"en":"📊 All Time",       "ru":"📊 За всё время", "uz":"📊 Umumiy"},
     "cur_balance":{"en":"Current Balance",  "ru":"Текущий баланс",  "uz":"Joriy balans"},
+    "top_category": {"en":"🏆 Top category", "ru":"🏆 Больше всего потрачено", "uz":"🏆 Eng ko'p sarflangan"},
 
     # undo
     "undo_btn":  {"en":"↩️ Undo","ru":"↩️ Отменить","uz":"↩️ Bekor qilish"},
@@ -129,6 +163,11 @@ TEXTS = {
 
     # errors
     "invalid_number":{"en":"❌ Invalid. Example: +200000 or -45000","ru":"❌ Неверно. Пример: +200000 или -45000","uz":"❌ Noto'g'ri. Masalan: +200000 yoki -45000"},
+    "generic_error": {
+        "en":"⚠️ Something went wrong. Please try again.",
+        "ru":"⚠️ Что-то пошло не так. Попробуйте снова.",
+        "uz":"⚠️ Xatolik yuz berdi. Qayta urinib ko'ring.",
+    },
 
     # share (between users)
     "share_usage":    {"en":"Ask them to send /myid, then:\n/share <their_id>","ru":"Попросите отправить /myid, затем:\n/share <их_id>","uz":"Ulardan /myid yuborishni so'rang, keyin:\n/share <ularning_id>"},
@@ -150,8 +189,11 @@ TEXTS = {
             "✅ Log income/expense in seconds\n"
             "✅ Daily & monthly limits with alerts\n"
             "✅ Smart Stats with progress bars\n"
+            "✅ Spending by category\n"
+            "✅ Weekly spending charts\n"
             "✅ Multi-language (UZ/RU/EN)\n"
             "✅ Auto daily & weekly summaries\n"
+            "✅ Excel export\n"
             "✅ Share stats with family\n"
             "✅ Multi-currency (UZS/USD/RUB)\n\n"
             "💰 *Price: $2.99/month*\n\n"
@@ -163,8 +205,11 @@ TEXTS = {
             "✅ Записывайте доходы и расходы за секунды\n"
             "✅ Дневной и месячный лимиты с уведомлениями\n"
             "✅ Smart Stats с прогресс-барами\n"
+            "✅ Расходы по категориям\n"
+            "✅ Недельные графики трат\n"
             "✅ Мультиязычность (UZ/RU/EN)\n"
             "✅ Авто сводка каждый день и неделю\n"
+            "✅ Экспорт в Excel\n"
             "✅ Делитесь статистикой с семьёй\n"
             "✅ Мультивалютность (UZS/USD/RUB)\n\n"
             "💰 *Цена: $2.99/месяц*\n\n"
@@ -176,8 +221,11 @@ TEXTS = {
             "✅ Daromad/xarajatni soniyalarda yozing\n"
             "✅ Kunlik va oylik limitlar va ogohlantirishlar\n"
             "✅ Smart Stats progress bar bilan\n"
+            "✅ Kategoriya bo'yicha xarajatlar\n"
+            "✅ Haftalik xarajat grafiklari\n"
             "✅ Ko'p tilli (UZ/RU/EN)\n"
             "✅ Har kun va hafta avtomatik hisobot\n"
+            "✅ Excelga eksport\n"
             "✅ Oila bilan statistikani ulashing\n"
             "✅ Ko'p valyutali (UZS/USD/RUB)\n\n"
             "💰 *Narx: $2.99/oy*\n\n"
@@ -218,10 +266,25 @@ TEXTS = {
         "uz":"👋 Salom, {name}!\n\nDaromad uchun +200000, xarajat uchun -45000 yuboring.\nQuyidagi menyu tugmalaridan foydalaning ⬇️",
     },
     "help": {
-        "en":"📖 Send +200000 or -45000 to log.\nTap ↩️ Undo to remove the last entry.\n\nMenu buttons:\n📅 Today — today's summary\n📆 Week — weekly summary\n🗓 Month — monthly summary\n💰 Balance — current balance\n⚙️ Settings — change everything\n❓ Help — this message\n\nOther commands:\n/all — all time totals\n/myid — your Telegram ID\n/share <id> — share stats\n/viewstats — shared stats",
-        "ru":"📖 Отправьте +200000 или -45000 для записи.\nНажмите ↩️ Отменить чтобы удалить последнюю запись.\n\nКнопки меню:\n📅 Сегодня\n📆 Неделя\n🗓 Месяц\n💰 Баланс\n⚙️ Настройки\n❓ Помощь\n\nДругие команды:\n/all — за всё время\n/myid — ваш ID\n/share <id> — поделиться\n/viewstats — общая статистика",
-        "uz":"📖 +200000 yoki -45000 yuboring.\n↩️ Bekor qilish tugmasi oxirgi yozuvni o'chiradi.\n\nMenyu tugmalari:\n📅 Bugun\n📆 Hafta\n🗓 Oy\n💰 Balans\n⚙️ Sozlamalar\n❓ Yordam\n\nBoshqa buyruqlar:\n/all — umumiy\n/myid — ID\n/share <id> — ulashish\n/viewstats — ulashilgan statistika",
+        "en":"📖 Send +200000 or -45000 to log.\nTap ↩️ Undo to remove the last entry.\n\nMenu buttons:\n📅 Today — today's summary\n📆 Week — weekly summary (+ chart)\n🗓 Month — monthly summary\n💰 Balance — current balance\n⚙️ Settings — change everything\n❓ Help — this message\n\nOther commands:\n/all — all time totals\n/export — download Excel file\n/myid — your Telegram ID\n/share <id> — share stats\n/viewstats — shared stats",
+        "ru":"📖 Отправьте +200000 или -45000 для записи.\nНажмите ↩️ Отменить чтобы удалить последнюю запись.\n\nКнопки меню:\n📅 Сегодня\n📆 Неделя (+ график)\n🗓 Месяц\n💰 Баланс\n⚙️ Настройки\n❓ Помощь\n\nДругие команды:\n/all — за всё время\n/export — скачать Excel файл\n/myid — ваш ID\n/share <id> — поделиться\n/viewstats — общая статистика",
+        "uz":"📖 +200000 yoki -45000 yuboring.\n↩️ Bekor qilish tugmasi oxirgi yozuvni o'chiradi.\n\nMenyu tugmalari:\n📅 Bugun\n📆 Hafta (+ grafik)\n🗓 Oy\n💰 Balans\n⚙️ Sozlamalar\n❓ Yordam\n\nBoshqa buyruqlar:\n/all — umumiy\n/export — Excel fayl yuklab olish\n/myid — ID\n/share <id> — ulashish\n/viewstats — ulashilgan statistika",
     },
+
+    # export
+    "export_generating": {"en":"📥 Generating your Excel file...","ru":"📥 Формируем ваш Excel файл...","uz":"📥 Excel faylingiz tayyorlanmoqda..."},
+    "export_caption":    {"en":"📊 Your complete transaction history","ru":"📊 Полная история операций","uz":"📊 Barcha operatsiyalar tarixi"},
+    "export_empty":       {"en":"❌ No transactions yet to export.","ru":"❌ Пока нет операций для экспорта.","uz":"❌ Eksport uchun operatsiyalar yo'q."},
+
+    # reminders
+    "reminder_text": {
+        "en":"👋 Don't forget to log today's expenses!\n\nJust send +amount or -amount.",
+        "ru":"👋 Не забудьте записать сегодняшние траты!\n\nПросто отправьте +сумма или -сумма.",
+        "uz":"👋 Bugungi xarajatlaringizni yozishni unutmang!\n\n+miqdor yoki -miqdor yuboring.",
+    },
+
+    # weekly chart caption
+    "week_chart_caption": {"en":"📈 Your spending this week","ru":"📈 Ваши траты за эту неделю","uz":"📈 Shu haftalik xarajatlaringiz"},
 
     # scheduled
     "daily_summary":  {"en":"📅 Daily Summary", "ru":"📅 Итог дня",    "uz":"📅 Kunlik hisobot"},
@@ -233,3 +296,8 @@ def t(key: str, lang: str, **kwargs) -> str:
     lang = lang if lang in ("en","ru","uz") else "en"
     tmpl = TEXTS.get(key, {}).get(lang) or TEXTS.get(key, {}).get("en", key)
     return tmpl.format(**kwargs) if kwargs else tmpl
+
+
+def cat_name(cat_key: str, lang: str) -> str:
+    lang = lang if lang in ("en","ru","uz") else "en"
+    return CATEGORY_NAMES.get(cat_key, {}).get(lang, cat_key.capitalize())

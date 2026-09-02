@@ -7,14 +7,16 @@ from telegram.ext import (
 from handlers import (
     handle_amount, handle_undo_callback,
     handle_setup_lang_callback, handle_setup_cur_callback,
-    handle_setup_skip_callback,
+    handle_setup_skip_callback, handle_setup_cat_callback,
     handle_setlang_callback, handle_setcur_callback,
     handle_cfg_callback, handle_confirm_callback,
+    handle_pickcat_callback,
     cmd_today, cmd_week, cmd_month, cmd_all, cmd_balance,
-    cmd_setlimit, cmd_language, cmd_settings,
+    cmd_setlimit, cmd_language, cmd_settings, cmd_export,
     cmd_share, cmd_unshare, cmd_start, cmd_help,
     cmd_myid, cmd_viewstats,
-    cmd_allow, cmd_deny, cmd_users, cmd_invite
+    cmd_allow, cmd_deny, cmd_users, cmd_invite,
+    error_handler,
 )
 from scheduler import setup_scheduler
 
@@ -23,13 +25,13 @@ TZ = pytz.timezone("Asia/Tashkent")
 
 
 async def post_init(app):
-    """Set burger menu commands."""
     await app.bot.set_my_commands([
         BotCommand("today",     "📅 Today's summary"),
-        BotCommand("week",      "📆 This week"),
+        BotCommand("week",      "📆 This week + chart"),
         BotCommand("month",     "🗓 This month"),
         BotCommand("all",       "📊 All time"),
         BotCommand("balance",   "💰 Current balance"),
+        BotCommand("export",    "📥 Export to Excel"),
         BotCommand("settings",  "⚙️ Settings"),
         BotCommand("setlimit",  "🎯 Set daily limit"),
         BotCommand("language",  "🌐 Change language"),
@@ -45,7 +47,6 @@ def main():
     if not token:
         raise ValueError("BOT_TOKEN not set")
 
-    # Fix for Python 3.10+ / 3.14 — ensure an event loop exists on main thread
     if sys.version_info >= (3, 10):
         try:
             asyncio.get_running_loop()
@@ -65,6 +66,7 @@ def main():
     app.add_handler(CommandHandler("month",     cmd_month))
     app.add_handler(CommandHandler("all",       cmd_all))
     app.add_handler(CommandHandler("balance",   cmd_balance))
+    app.add_handler(CommandHandler("export",    cmd_export))
     app.add_handler(CommandHandler("setlimit",  cmd_setlimit))
     app.add_handler(CommandHandler("language",  cmd_language))
     app.add_handler(CommandHandler("settings",  cmd_settings))
@@ -82,11 +84,15 @@ def main():
     app.add_handler(CallbackQueryHandler(handle_setup_lang_callback, pattern="^setup_lang:"))
     app.add_handler(CallbackQueryHandler(handle_setup_cur_callback,  pattern="^setup_cur:"))
     app.add_handler(CallbackQueryHandler(handle_setup_skip_callback, pattern="^setup_skip:"))
+    app.add_handler(CallbackQueryHandler(handle_setup_cat_callback,  pattern="^setup_cat:"))
+    app.add_handler(CallbackQueryHandler(handle_pickcat_callback,    pattern="^pickcat:"))
     app.add_handler(CallbackQueryHandler(handle_setlang_callback,    pattern="^setlang:"))
     app.add_handler(CallbackQueryHandler(handle_setcur_callback,     pattern="^setcur:"))
     app.add_handler(CallbackQueryHandler(handle_cfg_callback,        pattern="^cfg:"))
     app.add_handler(CallbackQueryHandler(handle_confirm_callback,    pattern="^confirm:"))
     app.add_handler(CallbackQueryHandler(handle_undo_callback,       pattern="^undo:"))
+
+    app.add_error_handler(error_handler)
 
     setup_scheduler(app, TZ)
     logging.info("Bot started")

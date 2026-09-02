@@ -11,22 +11,34 @@ if _db_dir:
 TASHKENT_TZ = pytz.timezone("Asia/Tashkent")
 DEFAULT_DAILY_LIMIT = 100000
 
+# Default expense categories (icon, key) — key is used for lang lookup
+EXPENSE_CATEGORIES = [
+    ("🍔", "food"),
+    ("🚗", "transport"),
+    ("🏠", "home"),
+    ("💊", "health"),
+    ("🎮", "fun"),
+    ("👕", "clothes"),
+    ("📚", "education"),
+    ("📦", "other"),
+]
+
 
 def get_conn():
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=10)
     conn.row_factory = sqlite3.Row
     return conn
 
 
 def init_db():
     with get_conn() as conn:
-        init_whitelist(conn)
         conn.executescript("""
             CREATE TABLE IF NOT EXISTS entries (
                 id          INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id     INTEGER NOT NULL,
                 amount      REAL    NOT NULL,
                 type        TEXT    NOT NULL CHECK(type IN ('expense','income')),
+                category    TEXT    DEFAULT NULL,
                 created_at  TEXT    NOT NULL
             );
             CREATE TABLE IF NOT EXISTS shares (
@@ -41,7 +53,18 @@ def init_db():
                 daily_limit     REAL    NOT NULL DEFAULT 100000,
                 monthly_budget  REAL    NOT NULL DEFAULT 0,
                 initial_balance REAL    NOT NULL DEFAULT 0,
-                setup_done      INTEGER NOT NULL DEFAULT 0
+                setup_done      INTEGER NOT NULL DEFAULT 0,
+                reminders_on    INTEGER NOT NULL DEFAULT 1,
+                categories_on   INTEGER NOT NULL DEFAULT 0
+            );
+            CREATE TABLE IF NOT EXISTS whitelist (
+                user_id   INTEGER PRIMARY KEY,
+                added_at  TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS invite_tokens (
+                token      TEXT PRIMARY KEY,
+                created_at TEXT NOT NULL,
+                used       INTEGER NOT NULL DEFAULT 0
             );
             CREATE INDEX IF NOT EXISTS idx_entries_user_date
                 ON entries(user_id, created_at);
@@ -51,11 +74,17 @@ def init_db():
             ("initial_balance","REAL NOT NULL DEFAULT 0"),
             ("setup_done",     "INTEGER NOT NULL DEFAULT 0"),
             ("monthly_budget", "REAL NOT NULL DEFAULT 0"),
+            ("reminders_on",   "INTEGER NOT NULL DEFAULT 1"),
+            ("categories_on",  "INTEGER NOT NULL DEFAULT 0"),
         ]:
             try:
                 conn.execute(f"ALTER TABLE users ADD COLUMN {col} {defval}")
             except Exception:
                 pass
+        try:
+            conn.execute("ALTER TABLE entries ADD COLUMN category TEXT DEFAULT NULL")
+        except Exception:
+            pass
 
 
 def now_tashkent():
@@ -77,7 +106,8 @@ def get_user(user_id: int) -> dict:
         if row:
             return dict(row)
         return {"lang": None, "currency": "UZS", "daily_limit": DEFAULT_DAILY_LIMIT,
-                "monthly_budget": 0, "initial_balance": 0, "setup_done": 0}
+                "monthly_budget": 0, "initial_balance": 0, "setup_done": 0,
+                "reminders_on": 1, "categories_on": 0}
 
 def is_setup_done(user_id: int) -> bool:
     return bool(get_user(user_id).get("setup_done", 0))
@@ -134,6 +164,26 @@ def set_initial_balance(user_id: int, amount: float):
             "INSERT INTO users (user_id,initial_balance) VALUES (?,?) "
             "ON CONFLICT(user_id) DO UPDATE SET initial_balance=excluded.initial_balance", (user_id, amount))
 
+def get_reminders_on(user_id: int) -> bool:
+    return bool(get_user(user_id).get("reminders_on", 1))
+
+def set_reminders_on(user_id: int, on: bool):
+    with get_conn() as conn:
+        conn.execute(
+            "INSERT INTO users (user_id,reminders_on) VALUES (?,?) "
+            "ON CONFLICT(user_id) DO UPDATE SET reminders_on=excluded.reminders_on",
+            (user_id, 1 if on else 0))
+
+def get_categories_on(user_id: int) -> bool:
+    return bool(get_user(user_id).get("categories_on", 0))
+
+def set_categories_on(user_id: int, on: bool):
+    with get_conn() as conn:
+        conn.execute(
+            "INSERT INTO users (user_id,categories_on) VALUES (?,?) "
+            "ON CONFLICT(user_id) DO UPDATE SET categories_on=excluded.categories_on",
+            (user_id, 1 if on else 0))
+
 def reset_all(user_id: int):
     with get_conn() as conn:
         conn.execute("DELETE FROM entries WHERE user_id=?", (user_id,))
@@ -148,11 +198,11 @@ def reset_today(user_id: int):
 
 # ── Entries ───────────────────────────────────────────────────────────────────
 
-def add_entry(user_id: int, amount: float, entry_type: str) -> int:
+def add_entry(user_id: int, amount: float, entry_type: str, category: str = None) -> int:
     with get_conn() as conn:
         cur = conn.execute(
-            "INSERT INTO entries (user_id,amount,type,created_at) VALUES (?,?,?,?)",
-            (user_id, abs(amount), entry_type, now_tashkent()))
+            "INSERT INTO entries (user_id,amount,type,category,created_at) VALUES (?,?,?,?,?)",
+            (user_id, abs(amount), entry_type, category, now_tashkent()))
         return cur.lastrowid
 
 def delete_entry(entry_id: int, user_id: int) -> bool:
@@ -199,44 +249,71 @@ def get_balance(user_id: int) -> float:
     return get_initial_balance(user_id) + stats["income"] - stats["expenses"]
 
 
+# ── Category breakdown ─────────────────────────────────────────────────────────
+
+def get_week_by_category(user_id: int) -> list:
+    """Return [(category, total)] for this week's expenses, sorted desc."""
+    sql = """
+        SELECT COALESCE(category,'other') AS cat, SUM(amount) AS total
+        FROM entries
+        WHERE user_id=? AND type='expense'
+          AND date(created_at) >= date('now','weekday 0','-7 days','localtime')
+        GROUP BY cat ORDER BY total DESC
+    """
+    with get_conn() as conn:
+        rows = conn.execute(sql, (user_id,)).fetchall()
+        return [(r["cat"], r["total"]) for r in rows]
+
+def get_month_by_category(user_id: int) -> list:
+    now = datetime.now(TASHKENT_TZ)
+    sql = f"""
+        SELECT COALESCE(category,'other') AS cat, SUM(amount) AS total
+        FROM entries
+        WHERE user_id=? AND type='expense'
+          AND date(created_at) >= '{now.year}-{now.month:02d}-01'
+        GROUP BY cat ORDER BY total DESC
+    """
+    with get_conn() as conn:
+        rows = conn.execute(sql, (user_id,)).fetchall()
+        return [(r["cat"], r["total"]) for r in rows]
+
+def get_week_daily_totals(user_id: int) -> list:
+    """Return [(date_str, expense_total)] for the last 7 days, oldest first."""
+    sql = """
+        SELECT date(created_at) AS d, COALESCE(SUM(amount),0) AS total
+        FROM entries
+        WHERE user_id=? AND type='expense'
+          AND date(created_at) >= date('now','-6 days','localtime')
+        GROUP BY d ORDER BY d ASC
+    """
+    with get_conn() as conn:
+        rows = conn.execute(sql, (user_id,)).fetchall()
+        return [(r["d"], r["total"]) for r in rows]
+
+def get_all_entries(user_id: int) -> list:
+    """Return all entries for export, newest first."""
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT amount, type, category, created_at FROM entries "
+            "WHERE user_id=? ORDER BY created_at DESC", (user_id,)
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
 # ── Whitelist ─────────────────────────────────────────────────────────────────
 
 def get_owner_id() -> int:
-    val = os.environ.get("OWNER_ID", "0")
+    val = os.environ.get("OWNER_ID", "0").strip()
     try:
         return int(val)
     except ValueError:
         return 0
 
 
-OWNER_ID = get_owner_id()  # cached at startup — set OWNER_ID env var before starting
-
-
-def init_whitelist(conn):
-    conn.executescript("""
-        CREATE TABLE IF NOT EXISTS whitelist (
-            user_id   INTEGER PRIMARY KEY,
-            added_at  TEXT NOT NULL
-        );
-        CREATE TABLE IF NOT EXISTS invite_tokens (
-            token      TEXT PRIMARY KEY,
-            created_at TEXT NOT NULL,
-            used       INTEGER NOT NULL DEFAULT 0
-        );
-    """)
-
-
 def is_allowed(user_id: int) -> bool:
-    """Check if user is owner or in whitelist.
-    If OWNER_ID env var is not set (0), allow everyone for backward compat."""
-    import os as _os
-    raw = _os.environ.get("OWNER_ID", "0").strip()
-    try:
-        owner = int(raw)
-    except ValueError:
-        owner = 0
+    owner = get_owner_id()
     if owner == 0:
-        return True  # no owner set — open access
+        return True
     if user_id == owner:
         return True
     with get_conn() as conn:
@@ -250,7 +327,7 @@ def allow_user(user_id: int):
     with get_conn() as conn:
         conn.execute(
             "INSERT OR IGNORE INTO whitelist (user_id, added_at) VALUES (?,?)",
-            (user_id, datetime.now(TASHKENT_TZ).strftime("%Y-%m-%d %H:%M:%S"))
+            (user_id, now_tashkent())
         )
 
 
@@ -271,12 +348,11 @@ def create_invite_token(token: str):
     with get_conn() as conn:
         conn.execute(
             "INSERT OR IGNORE INTO invite_tokens (token, created_at) VALUES (?,?)",
-            (token, datetime.now(TASHKENT_TZ).strftime("%Y-%m-%d %H:%M:%S"))
+            (token, now_tashkent())
         )
 
 
 def use_invite_token(token: str) -> bool:
-    """Returns True if token was valid and unused."""
     with get_conn() as conn:
         row = conn.execute(
             "SELECT used FROM invite_tokens WHERE token=?", (token,)
@@ -310,4 +386,10 @@ def get_shared_owners(viewer_id: int) -> list:
 def get_all_user_ids() -> list:
     with get_conn() as conn:
         rows = conn.execute("SELECT DISTINCT user_id FROM entries").fetchall()
+        return [r["user_id"] for r in rows]
+
+def get_all_setup_user_ids() -> list:
+    """All users who completed setup — used for reminders."""
+    with get_conn() as conn:
+        rows = conn.execute("SELECT user_id FROM users WHERE setup_done=1").fetchall()
         return [r["user_id"] for r in rows]
