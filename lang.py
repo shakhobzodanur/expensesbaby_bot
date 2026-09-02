@@ -79,60 +79,6 @@ TEXTS = {
     "balance":  {"en":"Balance","ru":"Баланс","uz":"Balans"},
     "updated":  {"en":"Updated","ru":"Обновлено","uz":"Yangilandi"},
 
-    # percentages
-    "pct_of_balance":      {"en":"📉 {pct}% of your balance","ru":"📉 {pct}% от баланса","uz":"📉 Balansingizning {pct}%"},
-    "pct_spent_of_earned": {"en":"💡 {pct}% of total earned spent","ru":"💡 {pct}% от доходов потрачено","uz":"💡 Jami daromadning {pct}% sarflandi"},
-    "pct_of_earned_income":{"en":"📈 +{pct}% to total earnings","ru":"📈 +{pct}% к общему доходу","uz":"📈 Umumiy daromadga +{pct}%"},
-
-    # daily limit
-    "limit_near": {"en":"⚠️ {pct}% of daily limit used! ({spent}/{limit} {cur})","ru":"⚠️ {pct}% дневного лимита использовано! ({spent}/{limit} {cur})","uz":"⚠️ Kunlik limitning {pct}% ishlatildi! ({spent}/{limit} {cur})"},
-    "limit_over": {"en":"🚨 Daily limit exceeded! {spent} {cur} (limit: {limit} {cur})","ru":"🚨 Дневной лимит превышен! {spent} {cur} (лимит: {limit} {cur})","uz":"🚨 Kunlik limit oshdi! {spent} {cur} (limit: {limit} {cur})"},
-    "week_spike": {"en":"📈 {pct}% more spending than last week!","ru":"📈 Трат на {pct}% больше, чем на прошлой неделе!","uz":"📈 O'tgan haftaga qaraganda {pct}% ko'p!"},
-
-    # setlimit / setbudget prompts
-    "setlimit_usage":   {"en":"Current daily limit: {limit} {cur}\n\nEnter new limit:","ru":"Текущий лимит: {limit} {cur}\n\nВведите новый лимит:","uz":"Joriy limit: {limit} {cur}\n\nYangi limit kiriting:"},
-    "setlimit_done":    {"en":"✅ Daily limit: {limit} {cur}.","ru":"✅ Дневной лимит: {limit} {cur}.","uz":"✅ Kunlik limit: {limit} {cur}."},
-    "setlimit_invalid": {"en":"❌ Enter a valid number.","ru":"❌ Введите корректное число.","uz":"❌ To'g'ri raqam kiriting."},
-
-    # summaries
-    "sum_today": {"en":"📅 Today's Summary","ru":"📅 Итог за сегодня","uz":"📅 Bugungi hisobot"},
-    "sum_week":  {"en":"📆 This Week",      "ru":"📆 За эту неделю","uz":"📆 Shu hafta"},
-    "sum_month": {"en":"🗓 This Month",     "ru":"🗓 За этот месяц","uz":"🗓 Shu oy"},
-    "sum_all":   {"en":"📊 All Time",       "ru":"📊 За всё время", "uz":"📊 Umumiy"},
-    "cur_balance":{"en":"Current Balance",  "ru":"Текущий баланс",  "uz":"Joriy balans"},
-
-    # undo
-    "undo_btn":  {"en":"↩️ Undo","ru":"↩️ Отменить","uz":"↩️ Bekor qilish"},
-    "undo_done": {"en":"↩️ Entry removed.","ru":"↩️ Запись удалена.","uz":"↩️ Yozuv o'chirildi."},
-    "undo_fail": {"en":"❌ Already removed.","ru":"❌ Уже удалено.","uz":"❌ Allaqachon o'chirilgan."},
-
-    # errors
-    "invalid_number":{"en":"❌ Invalid. Example: +200000 or -45000","ru":"❌ Неверно. Пример: +200000 или -45000","uz":"❌ Noto'g'ri. Masalan: +200000 yoki -45000"},
-
-    # share
-    "share_usage":    {"en":"Ask them to send /myid, then:\n/share <their_id>","ru":"Попросите отправить /myid, затем:\n/share <их_id>","uz":"Ulardan /myid yuborishni so'rang, keyin:\n/share <ularning_id>"},
-    "share_done":     {"en":"✅ User {id} can view your stats with /viewstats.","ru":"✅ Пользователь {id} может видеть статистику.","uz":"✅ {id} foydalanuvchi statistikangizni ko'ra oladi."},
-    "share_self":     {"en":"❌ Can't share with yourself.","ru":"❌ Нельзя поделиться с собой.","uz":"❌ O'zingiz bilan ulasha olmaysiz."},
-    "share_invalid":  {"en":"❌ Invalid ID.","ru":"❌ Неверный ID.","uz":"❌ Noto'g'ri ID."},
-    "unshare_usage":  {"en":"Usage: /unshare <id>","ru":"Использование: /unshare <id>","uz":"Foydalanish: /unshare <id>"},
-    "unshare_done":   {"en":"✅ Access removed for {id}.","ru":"✅ Доступ для {id} убран.","uz":"✅ {id} uchun ruxsat olib tashlandi."},
-    "myid":           {"en":"🆔 Your ID: {id}","ru":"🆔 Ваш ID: {id}","uz":"🆔 ID raqamingiz: {id}"},
-    "viewstats_none": {"en":"❌ No shared stats. Your ID: {id}","ru":"❌ Нет статистики. Ваш ID: {id}","uz":"❌ Ulashilgan statistika yo'q. ID: {id}"},
-    "viewstats_title":{"en":"📊 Shared Stats","ru":"📊 Общая статистика","uz":"📊 Ulashilgan statistika"},
-    "user":           {"en":"User","ru":"Пользователь","uz":"Foydalanuvchi"},
-
-    # welcome / help
-    "welcome": {
-        "en":"👋 Hello {name}!\n\nSend +200000 for income or -45000 for expense.\nUse the menu buttons below ⬇️",
-        "ru":"👋 Привет, {name}!\n\nОтправьте +200000 для дохода или -45000 для расхода.\nИспользуйте кнопки меню ⬇️",
-        "uz":"👋 Salom, {name}!\n\nDaromad uchun +200000, xarajat uchun -45000 yuboring.\nQuyidagi menyu tugmalaridan foydalaning ⬇️",
-    },
-    "help": {
-        "en":"📖 Send +200000 or -45000 to log.\nTap ↩️ Undo to remove the last entry.\n\nMenu buttons:\n📅 Today — today's summary\n📆 Week — weekly summary\n🗓 Month — monthly summary\n💰 Balance — current balance\n⚙️ Settings — change everything\n❓ Help — this message\n\nOther commands:\n/all — all time totals\n/myid — your Telegram ID\n/share <id> — share stats\n/viewstats — shared stats",
-        "ru":"📖 Отправьте +200000 или -45000 для записи.\nНажмите ↩️ Отменить чтобы удалить последнюю запись.\n\nКнопки меню:\n📅 Сегодня\n📆 Неделя\n🗓 Месяц\n💰 Баланс\n⚙️ Настройки\n❓ Помощь\n\nДругие команды:\n/all — за всё время\n/myid — ваш ID\n/share <id> — поделиться\n/viewstats — общая статистика",
-        "uz":"📖 +200000 yoki -45000 yuboring.\n↩️ Bekor qilish tugmasi oxirgi yozuvni o'chiradi.\n\nMenyu tugmalari:\n📅 Bugun\n📆 Hafta\n🗓 Oy\n💰 Balans\n⚙️ Sozlamalar\n❓ Yordam\n\nBoshqa buyruqlar:\n/all — umumiy\n/myid — ID\n/share <id> — ulashish\n/viewstats — ulashilgan statistika",
-    },
-
     # smart stats text
     "smart_title":   {"en":"📊 Smart Stats","ru":"📊 Smart Stats","uz":"📊 Smart Stats"},
     "smart_daily":   {
@@ -155,6 +101,46 @@ TEXTS = {
         "ru":"{bar} {p}%  •  От баланса ({spent}/{balance} {cur})",
         "uz":"{bar} {p}%  •  Balansdan ({spent}/{balance} {cur})",
     },
+
+    # percentages (income)
+    "pct_of_earned_income":{"en":"📈 +{pct}% to total earnings","ru":"📈 +{pct}% к общему доходу","uz":"📈 Umumiy daromadga +{pct}%"},
+
+    # daily limit / budget warnings
+    "limit_near": {"en":"⚠️ {pct}% of daily limit used! ({spent}/{limit} {cur})","ru":"⚠️ {pct}% дневного лимита использовано! ({spent}/{limit} {cur})","uz":"⚠️ Kunlik limitning {pct}% ishlatildi! ({spent}/{limit} {cur})"},
+    "limit_over": {"en":"🚨 Daily limit exceeded! {spent} {cur} (limit: {limit} {cur})","ru":"🚨 Дневной лимит превышен! {spent} {cur} (лимит: {limit} {cur})","uz":"🚨 Kunlik limit oshdi! {spent} {cur} (limit: {limit} {cur})"},
+    "week_spike": {"en":"📈 {pct}% more spending than last week!","ru":"📈 Трат на {pct}% больше, чем на прошлой неделе!","uz":"📈 O'tgan haftaga qaraganda {pct}% ko'p!"},
+
+    # setlimit prompts
+    "setlimit_usage":   {"en":"Current daily limit: {limit} {cur}\n\nEnter new limit:","ru":"Текущий лимит: {limit} {cur}\n\nВведите новый лимит:","uz":"Joriy limit: {limit} {cur}\n\nYangi limit kiriting:"},
+    "setlimit_done":    {"en":"✅ Daily limit: {limit} {cur}.","ru":"✅ Дневной лимит: {limit} {cur}.","uz":"✅ Kunlik limit: {limit} {cur}."},
+    "setlimit_invalid": {"en":"❌ Enter a valid number.","ru":"❌ Введите корректное число.","uz":"❌ To'g'ri raqam kiriting."},
+
+    # summaries
+    "sum_today": {"en":"📅 Today's Summary","ru":"📅 Итог за сегодня","uz":"📅 Bugungi hisobot"},
+    "sum_week":  {"en":"📆 This Week",      "ru":"📆 За эту неделю","uz":"📆 Shu hafta"},
+    "sum_month": {"en":"🗓 This Month",     "ru":"🗓 За этот месяц","uz":"🗓 Shu oy"},
+    "sum_all":   {"en":"📊 All Time",       "ru":"📊 За всё время", "uz":"📊 Umumiy"},
+    "cur_balance":{"en":"Current Balance",  "ru":"Текущий баланс",  "uz":"Joriy balans"},
+
+    # undo
+    "undo_btn":  {"en":"↩️ Undo","ru":"↩️ Отменить","uz":"↩️ Bekor qilish"},
+    "undo_done": {"en":"↩️ Entry removed.","ru":"↩️ Запись удалена.","uz":"↩️ Yozuv o'chirildi."},
+    "undo_fail": {"en":"❌ Already removed.","ru":"❌ Уже удалено.","uz":"❌ Allaqachon o'chirilgan."},
+
+    # errors
+    "invalid_number":{"en":"❌ Invalid. Example: +200000 or -45000","ru":"❌ Неверно. Пример: +200000 или -45000","uz":"❌ Noto'g'ri. Masalan: +200000 yoki -45000"},
+
+    # share (between users)
+    "share_usage":    {"en":"Ask them to send /myid, then:\n/share <their_id>","ru":"Попросите отправить /myid, затем:\n/share <их_id>","uz":"Ulardan /myid yuborishni so'rang, keyin:\n/share <ularning_id>"},
+    "share_done":     {"en":"✅ User {id} can view your stats with /viewstats.","ru":"✅ Пользователь {id} может видеть статистику.","uz":"✅ {id} foydalanuvchi statistikangizni ko'ra oladi."},
+    "share_self":     {"en":"❌ Can't share with yourself.","ru":"❌ Нельзя поделиться с собой.","uz":"❌ O'zingiz bilan ulasha olmaysiz."},
+    "share_invalid":  {"en":"❌ Invalid ID.","ru":"❌ Неверный ID.","uz":"❌ Noto'g'ri ID."},
+    "unshare_usage":  {"en":"Usage: /unshare <id>","ru":"Использование: /unshare <id>","uz":"Foydalanish: /unshare <id>"},
+    "unshare_done":   {"en":"✅ Access removed for {id}.","ru":"✅ Доступ для {id} убран.","uz":"✅ {id} uchun ruxsat olib tashlandi."},
+    "myid":           {"en":"🆔 Your ID: {id}","ru":"🆔 Ваш ID: {id}","uz":"🆔 ID raqamingiz: {id}"},
+    "viewstats_none": {"en":"❌ No shared stats. Your ID: {id}","ru":"❌ Нет статистики. Ваш ID: {id}","uz":"❌ Ulashilgan statistika yo'q. ID: {id}"},
+    "viewstats_title":{"en":"📊 Shared Stats","ru":"📊 Общая статистика","uz":"📊 Ulashilgan statistika"},
+    "user":           {"en":"User","ru":"Пользователь","uz":"Foydalanuvchi"},
 
     # promo message for non-whitelisted users
     "promo": {
@@ -212,17 +198,30 @@ TEXTS = {
     "users_title":   {"en":"👥 Allowed Users","ru":"👥 Разрешённые пользователи","uz":"👥 Ruxsat berilgan foydalanuvchilar"},
     "users_empty":   {"en":"No users yet.","ru":"Пользователей нет.","uz":"Foydalanuvchilar yo'q."},
     "invite_text":   {
-        "en":"🔗 Share this invite link:\n{link}\n\nValid for one use.",
-        "ru":"🔗 Отправьте эту ссылку:\n{link}\n\nОдноразовая.",
-        "uz":"🔗 Ushbu havolani yuboring:\n{link}\n\nBir martalik.",
+        "en":"🔗 Invite link ready!\n\nTap the button below to share it directly, or copy this link:\n{link}\n\nOne-time use only.",
+        "ru":"🔗 Ссылка-приглашение готова!\n\nНажмите кнопку ниже, чтобы поделиться, или скопируйте ссылку:\n{link}\n\nОдноразовая.",
+        "uz":"🔗 Taklif havolasi tayyor!\n\nUlashish uchun pastdagi tugmani bosing, yoki havolani nusxalang:\n{link}\n\nBir martalik.",
     },
+    "share_button":  {"en":"📤 Share Invite Link", "ru":"📤 Поделиться ссылкой", "uz":"📤 Havolani ulashish"},
     "invite_used":   {
-        "en":"✅ Access granted! Send /start to begin.",
-        "ru":"✅ Доступ открыт! Отправьте /start.",
-        "uz":"✅ Ruxsat berildi! /start yuboring.",
+        "en":"✅ Access granted! Let's set up your account.",
+        "ru":"✅ Доступ открыт! Давайте настроим аккаунт.",
+        "uz":"✅ Ruxsat berildi! Hisobingizni sozlaymiz.",
     },
     "invite_invalid":{"en":"❌ Invalid or expired invite link.","ru":"❌ Недействительная ссылка.","uz":"❌ Havola yaroqsiz yoki muddati o'tgan."},
     "owner_only":    {"en":"❌ Owner only command.","ru":"❌ Только для владельца.","uz":"❌ Faqat egasi uchun."},
+
+    # welcome / help
+    "welcome": {
+        "en":"👋 Hello {name}!\n\nSend +200000 for income or -45000 for expense.\nUse the menu buttons below ⬇️",
+        "ru":"👋 Привет, {name}!\n\nОтправьте +200000 для дохода или -45000 для расхода.\nИспользуйте кнопки меню ⬇️",
+        "uz":"👋 Salom, {name}!\n\nDaromad uchun +200000, xarajat uchun -45000 yuboring.\nQuyidagi menyu tugmalaridan foydalaning ⬇️",
+    },
+    "help": {
+        "en":"📖 Send +200000 or -45000 to log.\nTap ↩️ Undo to remove the last entry.\n\nMenu buttons:\n📅 Today — today's summary\n📆 Week — weekly summary\n🗓 Month — monthly summary\n💰 Balance — current balance\n⚙️ Settings — change everything\n❓ Help — this message\n\nOther commands:\n/all — all time totals\n/myid — your Telegram ID\n/share <id> — share stats\n/viewstats — shared stats",
+        "ru":"📖 Отправьте +200000 или -45000 для записи.\nНажмите ↩️ Отменить чтобы удалить последнюю запись.\n\nКнопки меню:\n📅 Сегодня\n📆 Неделя\n🗓 Месяц\n💰 Баланс\n⚙️ Настройки\n❓ Помощь\n\nДругие команды:\n/all — за всё время\n/myid — ваш ID\n/share <id> — поделиться\n/viewstats — общая статистика",
+        "uz":"📖 +200000 yoki -45000 yuboring.\n↩️ Bekor qilish tugmasi oxirgi yozuvni o'chiradi.\n\nMenyu tugmalari:\n📅 Bugun\n📆 Hafta\n🗓 Oy\n💰 Balans\n⚙️ Sozlamalar\n❓ Yordam\n\nBoshqa buyruqlar:\n/all — umumiy\n/myid — ID\n/share <id> — ulashish\n/viewstats — ulashilgan statistika",
+    },
 
     # scheduled
     "daily_summary":  {"en":"📅 Daily Summary", "ru":"📅 Итог дня",    "uz":"📅 Kunlik hisobot"},
